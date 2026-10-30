@@ -17,12 +17,12 @@ from .const import (
 
 def connection_params(data) -> ModbusTcpParams | ModbusSerialParams:
     if data[CONF_TRANSPORT] == TRANSPORT_SERIAL:
-        parity = data[CONF_PARITY].upper()
+        parity = "N" if data[CONF_PARITY] == "n1" else data[CONF_PARITY].upper()
         return ModbusSerialParams(
             device=data[CONF_DEVICE],
             baudrate=data[CONF_BAUDRATE],
             parity=parity,
-            stopbits=2 if parity == "N" else 1,
+            stopbits=2 if parity == "N" and data[CONF_PARITY] != "n1" else 1,
         )
     host = data[CONF_HOST].strip()
     port = data[CONF_PORT]

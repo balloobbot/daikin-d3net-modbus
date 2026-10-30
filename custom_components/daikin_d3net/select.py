@@ -2,7 +2,7 @@
 
 from homeassistant.components.select import SelectEntity
 
-from .climate import DIRECTION_NAMES, FAN_NAMES, MODE_TO_HA
+from .climate import DIRECTION_NAMES, MODE_TO_HA
 from .device import Mode
 from .entity import D3netEntity
 
@@ -15,7 +15,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     for unit in coordinator.gateway.units.values():
         entities.append(D3netSelect(coordinator, unit, "mode", MODE_TO_HA))
         if len(unit.capabilities.fan_speeds) > 1:
-            entities.append(D3netSelect(coordinator, unit, "fan_speed", FAN_NAMES))
+            entities.append(
+                D3netSelect(coordinator, unit, "fan_speed", unit.capabilities.fan_names)
+            )
         if unit.capabilities.directions:
             entities.append(
                 D3netSelect(coordinator, unit, "direction", DIRECTION_NAMES)

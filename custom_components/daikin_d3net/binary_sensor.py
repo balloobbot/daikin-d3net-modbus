@@ -14,7 +14,7 @@ NAMES = {
     "forced_off": "Forced off",
     "malfunction": "Malfunction",
     "warning": "Warning",
-    "sensor_error": "Temperature sensor fault",
+    "alarm": "Alarm",
 }
 
 
@@ -38,5 +38,10 @@ class D3netBinarySensor(D3netEntity, BinarySensorEntity):
 
     @property
     def is_on(self):
-        value = getattr(self.unit.status, self.key)
+        source = (
+            self.unit.fault
+            if self.key in ("malfunction", "warning", "alarm")
+            else self.unit.status
+        )
+        value = getattr(source, self.key)
         return None if value is None else bool(value)

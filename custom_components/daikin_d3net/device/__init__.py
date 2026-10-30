@@ -1,4 +1,4 @@
-"""Home Assistant independent DTA116A51 device API."""
+"""Home Assistant independent EKMBDXB7V1 device API."""
 
 from .gateway import D3netGateway, IndoorUnit
 from .models import Mode

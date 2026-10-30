@@ -1,6 +1,6 @@
 """Recorded cross-check cases at martinstafford/daikin_d3net@92ae9ab.
 
-The primary expectations come from EDMT721419. tools/compare_reference.py
+The shared climate fields also appear in EKMBDXB guide 4P642495-1A. tools/compare_reference.py
 also runs these common cases through the actual original decoder, without
 vendoring its source into this independent implementation.
 """
@@ -21,7 +21,8 @@ async def test_reference_address_math(modbus_unit, index):
     await status.async_update()
     assert [(event.address, event.count) for event in modbus_unit.read_events] == [
         (1000 + index * 3, 3),
-        (2000 + index * 6, 6),
+        (2000 + index * 6, 3),
+        (2004 + index * 6, 1),
     ]
     # Positive, ordinary values agree with the original integration.
     assert status.power is True

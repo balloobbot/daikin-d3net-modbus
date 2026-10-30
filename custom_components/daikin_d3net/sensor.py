@@ -18,7 +18,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(
         D3netSensor(coordinator, unit, key)
         for unit in coordinator.gateway.units.values()
-        for key in ("temperature", "state", "error_code")
+        for key in ("temperature", "state", "error_code", "error_subcode", "error_unit")
     )
 
 
@@ -30,6 +30,8 @@ class D3netSensor(D3netEntity, SensorEntity):
             "temperature": "Temperature",
             "state": "State",
             "error_code": "Error code",
+            "error_subcode": "Error subcode",
+            "error_unit": "Error unit number",
         }[key]
         if key == "temperature":
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
@@ -44,7 +46,11 @@ class D3netSensor(D3netEntity, SensorEntity):
         if self.key == "temperature":
             return status.room_temperature
         if self.key == "error_code":
-            return status.error_code
+            return self.unit.fault.error_code
+        if self.key == "error_subcode":
+            return self.unit.fault.subcode
+        if self.key == "error_unit":
+            return self.unit.fault.unit_number
         if status.power is None:
             return None
         return MODE_TO_HA.get(status.mode) if status.power else "off"

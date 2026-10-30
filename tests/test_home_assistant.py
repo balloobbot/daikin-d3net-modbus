@@ -51,7 +51,7 @@ async def test_setup_entities_and_unload(hass, mock_entry, shared_unit):
     assert climate.state == "cool"
     assert climate.attributes["current_temperature"] == 23.4
     assert climate.attributes["temperature"] == 22.5
-    assert climate.attributes["fan_modes"] == ["low", "medium", "high"]
+    assert climate.attributes["fan_modes"] == ["auto", "low", "medium", "high"]
     assert climate.attributes["min_temp"] == 16
     assert climate.attributes["max_temp"] == 32
     assert len(hass.states.async_all("binary_sensor")) == 5
@@ -177,13 +177,18 @@ async def test_duplicate_endpoint(hass, data):
 @pytest.mark.parametrize(
     "device", ["/dev/serial/by-id/usb-rs485", "socket://gateway.local:6638"]
 )
-@pytest.mark.parametrize(("parity", "stopbits"), [("e", 1), ("o", 1), ("n", 2)])
+@pytest.mark.parametrize(
+    ("parity", "stopbits"), [("e", 1), ("o", 1), ("n", 2), ("n1", 1)]
+)
 async def test_serial_setup_parameters(hass, shared_unit, device, parity, stopbits):
     data = {**SERIAL_DATA, "device": device, "baudrate": 19200, "parity": parity}
     entry = MockConfigEntry(domain=DOMAIN, data=data, unique_id=endpoint_id(data))
     await setup_entry(hass, entry)
     assert shared_unit.call_args.args[2] == ModbusSerialParams(
-        device=device, baudrate=19200, parity=parity.upper(), stopbits=stopbits
+        device=device,
+        baudrate=19200,
+        parity="N" if parity == "n1" else parity.upper(),
+        stopbits=stopbits,
     )
 
 
@@ -278,7 +283,7 @@ async def test_all_platform_controls(hass, mock_entry, modbus_unit):
         if offset == 0:
             words[0] = (words[0] & ~0x7701) | (event.values[0] & 0x7701)
         elif offset == 1:
-            words[1] = (words[1] & 0xF000) | (event.values[0] & 0xF0F)
+            words[1] = (words[1] & 0xF000) | (event.values[0] & 0xF)
         else:
             words[2] = event.values[0]
         modbus_unit.input[2000] = words
@@ -350,3 +355,56 @@ async def test_serial_retry_keeps_baud_rate(hass, modbus_unit):
     )
     baud = next(field for field in fields if field["name"] == "baudrate")
     assert baud["description"]["suggested_value"] == "19200"
+
+
+async def test_last_group_five_speed_controls_and_fault_details(
+    hass, mock_entry, modbus_unit
+):
+    seed(modbus_unit, (63,))
+    modbus_unit.input[1189] = [0xDD1F, 0x1020, 0x0A1E]
+    modbus_unit.input[3726] = [0x4337, 0xA500 | 42]
+    modbus_unit.holding[2189] = [0x5261, 2, 225]
+    await setup_entry(hass, mock_entry)
+    climate = hass.states.async_all("climate")[0]
+    assert climate.attributes["fan_modes"] == [
+        "auto",
+        "very low",
+        "low",
+        "medium",
+        "high",
+        "very high",
+    ]
+    assert climate.attributes["fan_mode"] == "very high"
+    writes = []
+    modbus_unit.on_write(writes.append)
+    await hass.services.async_call(
+        "climate",
+        "set_fan_mode",
+        {"entity_id": climate.entity_id, "fan_mode": "low"},
+        blocking=True,
+    )
+    assert [(event.address, event.values) for event in writes] == [(2189, [0x2261])]
+    registry = er.async_get(hass)
+    entities = {
+        entity.unique_id.rsplit(":", 1)[-1]: entity.entity_id
+        for entity in er.async_entries_for_config_entry(registry, mock_entry.entry_id)
+    }
+    assert hass.states.get(entities["error_code"]).state == "C7"
+    assert hass.states.get(entities["error_subcode"]).state == "42"
+    assert hass.states.get(entities["error_unit"]).state == "10"
+    assert hass.states.get(entities["malfunction"]).state == "on"
+    assert hass.states.get(entities["warning"]).state == "on"
+    assert hass.states.get(entities["alarm"]).state == "off"
+
+
+async def test_serial_flow_supports_no_parity_one_stop_bit(hass):
+    result = await start_connection_flow(hass, "serial")
+    data = {**SERIAL_DATA, "parity": "n1"}
+    with patch("custom_components.daikin_d3net.async_setup_entry", return_value=True):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], form_data(data)
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert connection_params(result["data"]).stopbits == 1
+    assert connection_params(result["data"]).parity == "N"

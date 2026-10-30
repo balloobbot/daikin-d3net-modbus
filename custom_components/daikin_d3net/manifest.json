@@ -1,13 +1,17 @@
 {
   "domain": "daikin_d3net",
-  "name": "Daikin DIII-Net (DTA116A51)",
-  "codeowners": ["@balloobbot"],
+  "name": "Daikin DIII-Net (EKMBDXB7V1)",
+  "codeowners": [
+    "@balloobbot"
+  ],
   "config_flow": true,
-  "dependencies": ["modbus"],
+  "dependencies": [
+    "modbus"
+  ],
   "documentation": "https://github.com/balloobbot/daikin-d3net-modbus",
   "integration_type": "hub",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/balloobbot/daikin-d3net-modbus/issues",
   "requirements": [],
-  "version": "0.3.0"
+  "version": "0.4.0"
 }

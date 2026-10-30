@@ -1,4 +1,4 @@
-"""DTA116A51 discovery, polling and commands based on EDMT721419."""
+"""EKMBDXB7V1 discovery, polling and commands from design guide 4P642495-1A."""
 
 import asyncio
 import math
@@ -7,14 +7,21 @@ import time
 from modbus_connection import ModbusConnectionError, ModbusError, ModbusUnit
 from modbus_connection.model import UpdateReport
 
-from .models import AdapterStatus, Capabilities, HoldingSettings, IndoorStatus, Mode
+from .models import (
+    AdapterStatus,
+    Capabilities,
+    FaultStatus,
+    HoldingSettings,
+    IndoorStatus,
+    Mode,
+)
 
 # Fields changed by commands; preserve the other holding-register bits.
-CONTROL_MASKS = (0x77F1, 0x0FFF, 0xFFFF)
+CONTROL_MASKS = (0x77F1, 0x00FF, 0xFFFF)
 
-# §2-2-7: at least 5 ms silence + 20 ms at 9600 baud.
+# §2.2.3–2.2.5: at least 5 ms silence + 20 ms at 9600 baud.
 MESSAGE_SPACING = 0.025
-# §5: more than 0.5 seconds between writes to the same register.
+# §2.3.2: more than 0.5 seconds between writes to the same register.
 WRITE_INTERVAL = 0.51
 
 
@@ -30,20 +37,22 @@ class D3netGateway:
         self._setup_done = False
 
     async def async_setup(self) -> None:
-        """Discover connected groups 1-00 through 1-15."""
+        """Discover climate units at addresses 1-00 through 4-15."""
         if self._setup_done:
             return
         await self.adapter.async_update()
         if not self.adapter.ready:
             raise ModbusError("DIII-Net adapter is not ready")
         units = {}
-        for index in range(16):
+        for index in range(64):
             if self.adapter.connected & (1 << index):
                 indoor = IndoorUnit(self, index)
                 await indoor.capabilities.async_update()
+                if not indoor.capabilities.modes:
+                    continue
                 units[index] = indoor
         if not units:
-            raise ModbusError("No indoor units are connected")
+            raise ModbusError("No supported climate units are connected")
         self.units = units
         self._setup_done = True
 
@@ -73,7 +82,9 @@ class D3netGateway:
             or not self.adapter.connected & (1 << index)
             or self.adapter.communication_errors & (1 << index)
         ):
-            raise ModbusError(f"Indoor unit 1-{index:02d} is not communicating")
+            raise ModbusError(
+                f"Indoor unit {index // 16 + 1}-{index % 16:02d} is not communicating"
+            )
 
 
 class IndoorUnit:
@@ -82,9 +93,10 @@ class IndoorUnit:
     def __init__(self, gateway: D3netGateway, index: int) -> None:
         self.gateway = gateway
         self.index = index
-        self.name = f"1-{index:02d}"
+        self.name = f"{index // 16 + 1}-{index % 16:02d}"
         self.capabilities = Capabilities(gateway.modbus_unit, index=index + 1)
         self.status = IndoorStatus(gateway.modbus_unit, index=index + 1)
+        self.fault = FaultStatus(gateway.modbus_unit, index=index + 1)
         self.settings = HoldingSettings(gateway.modbus_unit, index=index + 1)
         self._lock = asyncio.Lock()
         self._last_write: dict[int, float] = {}
@@ -93,6 +105,7 @@ class IndoorUnit:
     async def async_update(self) -> None:
         async with self._lock:
             await self.status.async_update()
+            await self.fault.async_update()
             if self._reset_pending is not None:
                 await self._clear_reset()
 
@@ -112,8 +125,8 @@ class IndoorUnit:
             for address in addresses:
                 self._last_write[address] = time.monotonic()
 
-    def _mode_word(self, mode: int | None = None, *, setpoint: bool = False) -> int:
-        """Build only documented control bits, including Auto setpoint selection."""
+    def _mode_word(self, mode: int | None = None) -> int:
+        """Build the mode nibble; the upper byte is reserved."""
         status = self.status
         caps = self.capabilities
         mode = status.mode if mode is None else mode
@@ -127,16 +140,11 @@ class IndoorUnit:
             and caps.heat
             and caps.cool
         ):
-            # §4-2-2: code 6 changes setpoint without requesting system mode.
+            # Page 34: code 6 changes setpoint without requesting system mode.
             if mode != status.mode:
                 raise ValueError("Change cooling/heating at the system's master unit")
             mode = Mode.DEPENDENT
-        operation = status.operation if status.operation in (1, 2) else 0
-        if mode == Mode.AUTO and setpoint and operation == 0:
-            raise ValueError(
-                "Wait for Auto mode to select heating or cooling before setting temperature"
-            )
-        return mode | (operation << 8)
+        return mode
 
     async def _clear_reset(self) -> None:
         await self._write(1, [self._reset_pending])
@@ -174,24 +182,30 @@ class IndoorUnit:
             if power is not None or fan_speed is not None or direction is not None:
                 speed = status.fan_speed if caps.fan_speed else 0
                 flap = status.direction if caps.direction else 0
-                baseline[0] = int(status.power) | 0x60 | (flap << 8) | (speed << 12)
+                fan_control = 0x60 if caps.fan_speed or caps.direction else 0
+                baseline[0] = (
+                    int(status.power) | fan_control | (flap << 8) | (speed << 12)
+                )
                 target[0] = (
                     int(status.power if power is None else power)
-                    | 0x60
+                    | fan_control
                     | ((flap if direction is None else direction) << 8)
                     | ((speed if fan_speed is None else fan_speed) << 12)
                 )
             if mode is not None or temperature is not None or reset_filter:
                 baseline[1] = self._mode_word()
-                target[1] = self._mode_word(mode, setpoint=temperature is not None)
+                target[1] = self._mode_word(mode)
             if temperature is not None:
                 selected_mode = status.mode if mode is None else mode
-                limit_mode = (
-                    Mode(status.operation)
-                    if selected_mode == Mode.AUTO
-                    else selected_mode
-                )
-                low, high = caps.temperature_limits(limit_mode)
+                if selected_mode == Mode.AUTO:
+                    limits = [
+                        caps.temperature_limits(candidate)
+                        for candidate in (Mode.HEAT, Mode.COOL)
+                    ]
+                    low = max(bounds[0] for bounds in limits)
+                    high = min(bounds[1] for bounds in limits)
+                else:
+                    low, high = caps.temperature_limits(selected_mode)
                 if not math.isfinite(temperature) or not low <= temperature <= high:
                     raise ValueError(f"Temperature must be between {low} and {high} °C")
                 baseline[2] = round(status.setpoint * 10) & 0xFFFF
@@ -208,7 +222,7 @@ class IndoorUnit:
                 retained = settings[offset] & ~CONTROL_MASKS[offset]
                 baseline[offset] |= retained
                 target[offset] |= retained
-            # A setpoint write must be preceded by the correct mode/operation (§4-2-2).
+            # Synchronize the mode before a setpoint write, including dependent mode.
             sync_offsets = changed | ({1} if 2 in changed else set())
             for offset in sorted(sync_offsets):
                 if settings[offset] != baseline[offset]:

@@ -20,7 +20,6 @@ MODE_TO_HA = {
     Mode.DRY: HVACMode.DRY,
 }
 HA_TO_MODE = {value: key for key, value in MODE_TO_HA.items()}
-FAN_NAMES = {1: "low", 3: "medium", 5: "high"}
 DIRECTION_NAMES = {0: "P0", 1: "P1", 2: "P2", 3: "P3", 4: "P4", 6: "off", 7: "on"}
 
 
@@ -46,7 +45,7 @@ class D3netClimate(D3netEntity, ClimateEntity):
             self._attr_supported_features |= ClimateEntityFeature.TARGET_TEMPERATURE
         if len(caps.fan_speeds) > 1:
             self._attr_supported_features |= ClimateEntityFeature.FAN_MODE
-            self._attr_fan_modes = [FAN_NAMES[value] for value in caps.fan_speeds]
+            self._attr_fan_modes = [caps.fan_names[value] for value in caps.fan_speeds]
         if caps.directions:
             self._attr_supported_features |= ClimateEntityFeature.SWING_MODE
             self._attr_swing_modes = [
@@ -102,7 +101,7 @@ class D3netClimate(D3netEntity, ClimateEntity):
 
     @property
     def fan_mode(self):
-        return FAN_NAMES.get(self.unit.status.fan_speed)
+        return self.unit.capabilities.fan_names.get(self.unit.status.fan_speed)
 
     @property
     def swing_mode(self):
@@ -130,7 +129,9 @@ class D3netClimate(D3netEntity, ClimateEntity):
 
     async def async_set_fan_mode(self, fan_mode):
         await self.async_control(
-            fan_speed={name: value for value, name in FAN_NAMES.items()}[fan_mode]
+            fan_speed={
+                name: value for value, name in self.unit.capabilities.fan_names.items()
+            }[fan_mode]
         )
 
     async def async_set_swing_mode(self, swing_mode):

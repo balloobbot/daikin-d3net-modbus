@@ -1,6 +1,6 @@
 # Reference documents
 
-Vendor documents used for the DTA116A51 implementation and the CoolMaster comparison. Downloaded on 2026-10-30. Files are unmodified; copyright remains with their publishers and the repository's software license does not apply to them.
+Vendor documents used for the EKMBDXB7V1 implementation and the CoolMaster comparison. Downloaded on 2026-10-30. Files are unmodified; copyright remains with their publishers and the repository's software license does not apply to them.
 
 These are the public revisions we found, not confirmation of what the latest firmware supports. The DTA116A51, EKMBDXB and CoolMaster maps describe different adapters. Do not treat their registers as interchangeable.
 
@@ -8,9 +8,9 @@ These are the public revisions we found, not confirmation of what the latest fir
 
 | Local copy | Revision and scope | Original source |
 | --- | --- | --- |
-| [DTA116A51 engineering manual](EDMT721419-DTA116A51.pdf) | EDMT721419; includes functional specification CB13A033, first edition 2013-08-09. Basis for the current integration. | [Daikin](https://daikincomfort.com/docs/default-source/general/vrv/em-edmt721419.pdf) |
+| [DTA116A51 engineering manual](EDMT721419-DTA116A51.pdf) | EDMT721419; includes functional specification CB13A033, first edition 2013-08-09. Historical reference for the older adapter. | [Daikin](https://daikincomfort.com/docs/default-source/general/vrv/em-edmt721419.pdf) |
 | [DTA116A51 product flyer](DTA116A51-product-flyer.pdf) | PF-DIINET-11_15. Lists 16 indoor units and 2 outdoor units. | [Daikin](https://daikinac.com/docs/default-source/general/vrv/pf-diiinet.pdf) |
-| [EKMBDXB design guide](EKMBDXB-design-guide-4P642495-1A.pdf) | EKMBDXB7V1, 4P642495-1A, 2022.02. Extended register map, communication and software-update procedures. | [Daikin](https://www.daikin-ce.com/content/dam/document-library/Installer-reference-guide/ac/vrv/ekmbdxb/EKMBDXB_Design%20guide_4PEN642495-1A_English.pdf) |
+| [EKMBDXB design guide](EKMBDXB-design-guide-4P642495-1A.pdf) | EKMBDXB7V1, 4P642495-1A, 2022.02. Primary reference for the current integration: register map, communication and software-update procedures. | [Daikin](https://www.daikin-ce.com/content/dam/document-library/Installer-reference-guide/ac/vrv/ekmbdxb/EKMBDXB_Design%20guide_4PEN642495-1A_English.pdf) |
 | [EKMBDXB installation manual](EKMBDXB-installation-manual-4P635058-1B.pdf) | 4P635058-1B, 2022.02. Wiring and installation. | [Daikin](https://www.daikin.co.uk/content/dam/document-library/installation-manuals/opt-and-acc/controls/ekmbdxb/EKMBDXB_Installation%20manual_4PEN635058-1B_English.pdf) |
 | [Earlier EKMBDXB installation manual](EKMBDXB-installation-manual-4P635058-1.pdf) | 4P635058-1, 2020.10. Earlier revision still linked from the product page; retained for comparison. | [Daikin](https://www.daikin.co.uk/content/dam/document-library/installation-manuals/opt-and-acc/controls/ekmbdxb/EKMBDXB_4PEN635058-1_Installation%20manual_English.pdf) |
 | [CoolMaster programmer reference](CoolMaster-programmer-reference-0.10.pdf) | Revision 0.10; cover date printed as 11/1/2024. CoolMaster product-line ASCII commands. | [CoolAutomation](https://support.coolautomation.com/hc/en-us/article_attachments/17317574262557) |

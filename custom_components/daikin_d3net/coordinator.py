@@ -1,4 +1,4 @@
-"""Poll a DTA116A51 and report availability per indoor unit."""
+"""Poll a EKMBDXB7V1 and report availability per indoor unit."""
 
 import logging
 from datetime import timedelta

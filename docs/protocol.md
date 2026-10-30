@@ -1,71 +1,67 @@
-# DTA116A51 protocol reference
+# EKMBDXB7V1 protocol reference
 
-Primary source: [Daikin EDMT721419 engineering manual](EDMT721419-DTA116A51.pdf), containing functional specification CB13A033. Page references below are the functional specification's internal page numbers. Add 16 for the manual's printed page, or 18 for the PDF viewer's one-based page number.
-
-Original source: [Daikin Comfort engineering manual](https://daikincomfort.com/docs/default-source/general/vrv/em-edmt721419.pdf).
-
-The bundled PDF is an unmodified Daikin document. Its copyright remains with Daikin. The repository's software license does not apply to the PDF.
-
-SHA-256: `bcef452141a2a02822d9868be33c2267dab75ff6108b5925ac7b40f1b06882c8`.
+Primary source: [Daikin design guide 4P642495-1A, February 2022](EKMBDXB-design-guide-4P642495-1A.pdf). Page numbers below are printed guide pages; add one for the PDF viewer. This is the public revision available to us, not confirmation of the latest firmware's capabilities. Daikin directs installers to its Business Portal for software releases (page 40).
 
 ## Address map
 
-For indoor index `i` from 0 through 15, group address is `1-ii`. The library's component index is one-based, so components receive `index=i+1`.
+The adapter supports 64 DIII addresses, `1-00` through `4-15`. For zero-based indoor index `i`, the group address is `(i // 16 + 1)-(i % 16)`. Components receive the one-based index `i + 1`.
 
-| Function | Manual reference | Zero-based wire address | Width | Specification page |
-|---|---|---|---|---|
-| Adapter readiness | 30001 | 0 | 1 | 15 |
-| Connected units | 30002 | 1 | 1 | 16 |
-| Communication errors | 30006 | 5 | 1 | 17 |
-| Unit capabilities | 31001 + 3i | 1000 + 3i | 3 | 18–19 |
-| Unit status | 32001 + 6i | 2000 + 6i | 6 | 20–23 |
-| Unit commands | 42001 + 3i | 2000 + 3i | 3 | 25–27 |
-| Adapter EEPROM settings | 40001 | 0, holding space | 1 | 24; not modified |
+| Function | Manual reference | Zero-based wire address | Width | Guide page |
+| --- | --- | --- | --- | --- |
+| Readiness and other central controller | 30001 | 0 | 1 | 21 |
+| Connected units, groups 1–4 | 30002–30005 | 1–4 | 4 | 21 |
+| Communication errors, groups 1–4 | 30006–30009 | 5–8 | 4 | 21 |
+| Climate capabilities | 31001 + 3i | 1000 + 3i | 3 | 22–23 |
+| Power/fan, mode/filter, setpoint | 32001 + 6i | 2000 + 6i | 3 | 25–27 |
+| Suction/controller temperature | 32005 + 6i | 2004 + 6i | 1 | 28 |
+| ASCII fault code and detail | 33601 + 2i | 3600 + 2i | 2 | 31 |
+| Climate commands | 42001 + 3i | 2000 + 3i | 3 | 33–35 |
 
-Input registers report unit state (FC04); holding registers store commands (FC03 reads, FC16 writes). The three holding words contain:
+Input registers report live state (FC04). Holding registers store commands (FC03 reads, FC16 writes). Both read functions are explicitly listed on page 10. Holding values are initialized at discovery and can become stale after wall-controller changes.
 
-| Offset | Contents |
-|---|---|
-| 0 | Power, fan-control selector, flap direction and fan speed |
-| 1 | Mode, filter-reset pulse and heating/cooling selector for Auto setpoints |
-| 2 | Temperature setpoint |
+Each read is limited to 32 registers and writes to 30 (pages 11–13). The implementation reads only documented fields, merging adjacent addresses. In particular, it does not read the older DTA116A51 error word at `32004` or sensor flags at `32006`, which are absent from this guide.
 
-These commands feed the climate entity and separate power, setpoint, mode, fan, direction and filter-reset entities. Their displayed values come from input status. Holding values can lag behind changes made at a wall controller.
+## Capabilities and status
 
-The DTA116A51 manual lists FC04, FC06 and FC16, but omits FC03. This implementation uses FC03 for command preparation, following the original integration. The newer [EKMBDXB design guide](https://www.daikin-ce.com/content/dam/document-library/Installer-reference-guide/ac/vrv/ekmbdxb/EKMBDXB_Design%20guide_4PEN642495-1A_English.pdf) documents FC03 and distinguishes stored commands from live status (§2). Support on a physical DTA116A51 remains unverified. A failed holding read aborts the command; there is no fallback.
+Climate capabilities describe supported modes, fan speeds, flap positions and signed eight-bit temperature limits. The limit words store the minimum in the high byte and maximum in the low byte.
 
-Each read is limited to 32 registers and each write stays below the 30-register limit (pages 4–6). Adjacent fields share a read; reserved gaps between adapter status words are skipped.
+Fan speeds depend on the capability value (pages 25 and 33):
 
-## Status and capabilities
+| Capability | Supported command values |
+| --- | --- |
+| Fixed | 5: high |
+| Two steps | 0: Auto, 1: low, 5: high |
+| Three steps | 0: Auto, 1: low, 3: medium, 5: high |
+| Five steps | 0: Auto, 1: very low, 2: low, 3: medium, 4: high, 5: very high |
 
-Capability bitfields describe mode support, fan direction steps, fan speed steps, and signed eight-bit minimum/maximum temperatures. In the temperature-limit words, the low byte is the maximum and the high byte is the minimum (pages 18–19).
+The guide lists a four-step capability but gives no corresponding command mapping. The integration does not offer speed control for that value. Ventilation units use a separate fan encoding and are outside the current climate implementation; units without supported climate modes are skipped.
 
-Status words expose power and forced-off bits; flap and fan values; requested mode; filter indication; current operation; and cool/heat master status. The master field occupies bits 14–15 of the second status word (pages 20–21).
+Setpoint and measured temperature are signed 16-bit values in tenths of a degree Celsius. The measured value is suction temperature unless the installer configures a controller sensor as described on page 28. There is no documented sensor-received flag in this map. Adapter readiness and per-unit communication status govern availability; the adapter can take up to ten minutes to detect a DIII communication failure.
 
-Setpoint and room temperature are signed 16-bit integers in tenths of a degree Celsius. The sixth status word marks sensor error at bit 8 and data received at bit 15. A temperature is usable only after receipt and without the error flag (pages 21–23).
-
-The fourth status word contains error mapping value 1 at bits 0–3 and value 2 at bits 4–8, plus malfunction and warning at bits 9 and 10. The table on page 31 maps these to error codes; value 1=4 and value 2=9 means `U4`. Value 2=31 has no defined code, so it returns unknown. No separate error register block is read.
+Fault codes are two ASCII characters, high byte first. `0x4337` means `C7`; `0x3030` means no fault (`00`). Non-printable values are reported as unknown. The following word contains the affected unit number in bits 12–15, warning/alarm/error flags in bits 10/9/8, and a six-bit subcode. A subcode is meaningful only for codes that define one (page 31).
 
 ## Command sequencing
 
-1. Read adapter communication status and the unit's six input status words.
-2. Validate capability support, temperatures and cool/heat role before any write.
-3. Skip unchanged commands. Otherwise, read all three holding registers and derive baseline control words from input status. Preserve holding bits outside the control masks `0x77F1`, `0x0FFF` and `0xFFFF`.
-4. Write each affected baseline word only when its holding value differs, then write the requested changes. This ensures commands still trigger after wall-controller changes (pages 10 and 28–30).
-5. Wait more than 0.5 seconds before writing the same register again (page 28). The implementation uses 0.51 seconds after completion of the preceding attempt, including failed attempts.
-6. For a temperature command, synchronize the mode/operation register before changing the temperature register (page 27).
-7. For filter reset, write reset nibble `15`, then clear it to `0`. If clearing fails or a request is cancelled, retain a pending clear and retry during a later poll or command (page 26).
+1. Read adapter communication status and the unit's live climate fields.
+2. Validate capabilities, setpoint limits and cool/heat role before writing.
+3. Skip unchanged commands. Otherwise read all three holding words and build baseline values from live status, preserving bits outside masks `0x77F1`, `0x00FF` and `0xFFFF`.
+4. Synchronize affected holding words when they differ from live status, then write the requested changes. A command must change the stored value to trigger an operation after a wall-controller change (pages 16–19).
+5. Wait at least 0.51 seconds between attempts to write the same register, including failed attempts. The guide requires more than 0.5 seconds.
+6. Synchronize the mode before setting temperature. Cool/heat slaves use mode `6` for dependent setpoint control and cannot request a different system heating/cooling mode.
+7. Pulse the filter-reset nibble to `15`, then clear it to `0`. If clearing fails or is cancelled, retry the pending clear during the next poll or command (page 34).
 
-The device requests 25 ms of message spacing from `ModbusUnit`, covering the 9600-baud silence interval plus response processing margin on page 8. The connection backend serializes Modbus requests; each indoor unit also has a lock around its complete control sequence.
+The upper byte of command register `42002` is reserved in this guide. The integration preserves it and does not write the older DTA116A51 Auto heating/cooling selector there. Auto setpoints use the intersection of the unit's heating and cooling limits.
 
-The fan-control nibble must equal `6`. Fan speed is zero when the unit has no fan-speed capability. Fixed, two-step and three-step speeds are handled as specified; Auto fan speed and four/five-step fan speeds are not advertised by this manual (pages 18, 20 and 25).
+The fan-control nibble is `6` when the unit has fan-speed or direction control, otherwise `0` (pages 33–34). The connection has 25 ms message spacing and a 10-second timeout. Each unit serializes its full command sequence; Home Assistant owns and shares the underlying connection through `modbus-connection`.
 
-For an Auto-mode temperature change, bits 8–11 of the command mode word select heating (`1`) or cooling (`2`). If current operation cannot select either, the command fails. Cool/heat slaves use command mode `6` for setpoint control and cannot request a different heating/cooling system mode (page 26).
+State refreshes from input registers every ten seconds. A write acknowledgement does not update displayed state. Failed commands are not automatically repeated, since the adapter may have accepted a write whose response was lost.
 
-## Implementation choices
+## Connection and scope
 
-Routine polls read input status. Holding reads and synchronization writes happen during command preparation; a pending filter-reset clear is also retried during polls.
+EKMBDXB7V1 uses RS485 Modbus RTU at 9600 or 19200 baud, with a DIP-switch address of 1–15. Even/odd parity uses one stop bit; no parity supports one or two (page 10). Setup offers a serial port, including a serial proxy, or a Modbus TCP gateway that converts TCP to RTU.
 
-Entities display input status, including while a command propagates through DIII-Net. Failed commands are not automatically retried because the device may have accepted a write whose reply was lost.
+The current implementation covers climate controls and diagnostics. The guide also documents ventilation, controller locks, central forced-off and water-system functions; these are not implemented. Controller locks and central forced-off are available only when no other central DIII device is detected (pages 20, 32 and 38). No compatibility with DTA116A51 or DCPA01 is inferred from shared addresses.
 
-The device code follows the [modbus-connection integration guide](https://home-assistant-libs.github.io/modbus-connection/home-assistant/integration/). Home Assistant owns shared connections through `async_get_unit` and `async_get_temporary_unit`. Typed `Component` classes read the registers. Commands use a custom write sequence to synchronize with input status and enforce per-register delays.
+Daikin limits control commands to 7,000 per unit per year (page 4). Unchanged commands are skipped, but this limit is not counted or enforced.
+
+Hardware validation and Daikin's current firmware-specific specification are still needed. The older integration is used only to cross-check shared climate decoding, not to define EKMBDXB7V1 behavior.

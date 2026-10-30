@@ -1,7 +1,7 @@
-"""DTA116A51 registers from EDMT721419, functional specification §§3–4.
+"""EKMBDXB7V1 registers from design guide 4P642495-1A, §3.
 
 Addresses are zero-based. Input registers report state; holding registers
-store commands. See docs/protocol.md for the FC03 compatibility note.
+store commands.
 """
 
 from enum import IntEnum
@@ -10,7 +10,7 @@ from modbus_connection.model import Component, bit, bits, gauge, raw_register
 
 
 class Mode(IntEnum):
-    """Operating modes in §4-1-5 and §4-2-2."""
+    """Operating modes on pages 26 and 34."""
 
     FAN = 0
     HEAT = 1
@@ -21,7 +21,7 @@ class Mode(IntEnum):
 
 
 class InputComponent(Component):
-    """Constrain reads to the adapter's 32-register request limit (§2-2-4)."""
+    """Constrain reads to the adapter's 32-register request limit (§2.2.1)."""
 
     register_space = "input"
     max_span = 32
@@ -29,11 +29,31 @@ class InputComponent(Component):
 
 
 class AdapterStatus(InputComponent):
-    """Ready flag and 16-unit bitmaps (§4-1-1 through §4-1-3)."""
+    """Ready flag and four groups of 16 units (page 21)."""
 
     ready = bit(0, 0)
-    connected = raw_register(1)
-    communication_errors = raw_register(5)
+    other_controller = bit(0, 1)
+    connected_1 = raw_register(1)
+    connected_2 = raw_register(2)
+    connected_3 = raw_register(3)
+    connected_4 = raw_register(4)
+    errors_1 = raw_register(5)
+    errors_2 = raw_register(6)
+    errors_3 = raw_register(7)
+    errors_4 = raw_register(8)
+
+    @property
+    def connected(self) -> int:
+        return sum(
+            getattr(self, f"connected_{group + 1}") << (16 * group)
+            for group in range(4)
+        )
+
+    @property
+    def communication_errors(self) -> int:
+        return sum(
+            getattr(self, f"errors_{group + 1}") << (16 * group) for group in range(4)
+        )
 
 
 class HoldingSettings(Component):
@@ -50,7 +70,7 @@ class HoldingSettings(Component):
 
 
 class Capabilities(InputComponent):
-    """Three registers per indoor unit (§4-1-4)."""
+    """Three registers per indoor unit (pages 22–23)."""
 
     fan = bit(1000, 0, stride=3)
     cool = bit(1000, 1, stride=3)
@@ -89,7 +109,23 @@ class Capabilities(InputComponent):
     def fan_speeds(self) -> tuple[int, ...]:
         if not self.fan_speed:
             return ()
-        return {1: (5,), 2: (1, 5), 3: (1, 3, 5)}.get(self.fan_steps, ())
+        # Four-step capability is listed, but no command values are specified.
+        return {1: (5,), 2: (0, 1, 5), 3: (0, 1, 3, 5), 5: (0, 1, 2, 3, 4, 5)}.get(
+            self.fan_steps, ()
+        )
+
+    @property
+    def fan_names(self) -> dict[int, str]:
+        if self.fan_steps == 5:
+            return {
+                0: "auto",
+                1: "very low",
+                2: "low",
+                3: "medium",
+                4: "high",
+                5: "very high",
+            }
+        return {0: "auto", 1: "low", 3: "medium", 5: "high"}
 
     @property
     def directions(self) -> tuple[int, ...]:
@@ -104,7 +140,7 @@ def signed_byte(value: int) -> int:
 
 
 class IndoorStatus(InputComponent):
-    """Six status words per indoor unit (§4-1-5)."""
+    """Documented climate fields in the six-word stride (pages 25–28)."""
 
     power = bit(2000, 0, stride=6)
     forced_off = bit(2000, 2, stride=6)
@@ -115,29 +151,30 @@ class IndoorStatus(InputComponent):
     operation = bits(2001, 8, 4, stride=6)
     master = bits(2001, 14, 2, stride=6)
     setpoint = gauge(2002, 0.1, stride=6, unit="°C")
-    error_value1 = bits(2003, 0, 4, stride=6)
-    error_value2 = bits(2003, 4, 5, stride=6)
-    malfunction = bit(2003, 9, stride=6)
-    warning = bit(2003, 10, stride=6)
     temperature = gauge(2004, 0.1, stride=6, unit="°C")
-    sensor_error = bit(2005, 8, stride=6)
-    sensor_received = bit(2005, 15, stride=6)
 
     @property
     def room_temperature(self) -> float | None:
-        """Return room temperature when the sensor data is valid."""
-        if not self.sensor_received or self.sensor_error:
-            return None
+        """Return the reported suction or configured controller temperature."""
         return self.temperature
+
+
+class FaultStatus(InputComponent):
+    """ASCII fault code, subcode and severity (page 31)."""
+
+    code = raw_register(3600, stride=2)
+    unit_number = bits(3601, 12, 4, stride=2)
+    warning = bit(3601, 10, stride=2)
+    alarm = bit(3601, 9, stride=2)
+    malfunction = bit(3601, 8, stride=2)
+    subcode = bits(3601, 0, 6, stride=2)
 
     @property
     def error_code(self) -> str | None:
-        """Decode §6, including its U4 example; value2=31 is undefined."""
-        if self.error_value1 is None or self.error_value2 is None:
+        """Decode two ASCII characters; 00 means no fault."""
+        if self.code is None:
             return None
-        if self.error_value2 == 31:
+        characters = (self.code >> 8, self.code & 0xFF)
+        if not all(32 <= value <= 126 for value in characters):
             return None
-        return (
-            "0ACEHFJLPU987654321GKMNRTVWXYZ*"[self.error_value2]
-            + "0123456789ABCDEF"[self.error_value1]
-        )
+        return "".join(chr(value) for value in characters)

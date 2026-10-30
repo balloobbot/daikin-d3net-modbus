@@ -23,7 +23,7 @@ class D3netEntity(CoordinatorEntity[D3netCoordinator]):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, identity)},
             manufacturer="Daikin",
-            model="DTA116A51",
+            model="EKMBDXB7V1",
             name=f"{entry.title} {unit.name}",
         )
 
@@ -49,7 +49,11 @@ class D3netEntity(CoordinatorEntity[D3netCoordinator]):
         """Use the active mode's limits; use supported-mode bounds before a read."""
         mode = self.unit.status.mode
         if mode == Mode.AUTO:
-            mode = self.unit.status.operation
+            ranges = [
+                self.unit.capabilities.temperature_limits(candidate)
+                for candidate in (Mode.HEAT, Mode.COOL)
+            ]
+            return max(low for low, _ in ranges), min(high for _, high in ranges)
         if mode in (Mode.COOL, Mode.HEAT):
             return self.unit.capabilities.temperature_limits(mode)
         ranges = [

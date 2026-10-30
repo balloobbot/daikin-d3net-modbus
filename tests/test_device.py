@@ -7,7 +7,11 @@ import pytest
 from modbus_connection import ModbusError, ModbusTimeoutError
 
 from custom_components.daikin_d3net.device import D3netGateway, Mode
-from custom_components.daikin_d3net.device.models import Capabilities, IndoorStatus
+from custom_components.daikin_d3net.device.models import (
+    Capabilities,
+    FaultStatus,
+    IndoorStatus,
+)
 
 from .conftest import seed
 
@@ -19,9 +23,10 @@ async def gateway_for(unit):
 
 
 async def test_documented_discovery_and_strides(modbus_unit):
-    seed(modbus_unit, (0, 15))
+    seed(modbus_unit, (0, 15, 16, 31, 32, 47, 48, 63))
     gateway = await gateway_for(modbus_unit)
-    assert list(gateway.units) == [0, 15]
+    assert list(gateway.units) == [0, 15, 16, 31, 32, 47, 48, 63]
+    assert gateway.units[63].name == "4-15"
     assert modbus_unit.message_spacing == 0.025
     assert modbus_unit.required_timeout == 10
     assert gateway.units[15].name == "1-15"
@@ -31,15 +36,20 @@ async def test_documented_discovery_and_strides(modbus_unit):
         for event in modbus_unit.read_events
     )
     assert {(event.address, event.count) for event in modbus_unit.read_events} >= {
-        (0, 2),
-        (5, 1),
+        (0, 9),
         (1045, 3),
-        (2090, 6),
+        (2090, 3),
+        (2094, 1),
+        (1189, 3),
+        (2378, 3),
+        (2382, 1),
+        (3726, 2),
     }
 
 
 async def test_status_and_error_mapping(modbus_unit):
-    status = (await gateway_for(modbus_unit)).units[0].status
+    indoor = (await gateway_for(modbus_unit)).units[0]
+    status = indoor.status
     assert status.power
     assert status.direction == 2
     assert status.fan_speed == 5
@@ -47,27 +57,32 @@ async def test_status_and_error_mapping(modbus_unit):
     assert status.operation == Mode.COOL
     assert status.master == 2
     assert status.room_temperature == 23.4
-    assert status.error_code == "U4"
-    assert status.malfunction and not status.warning
+    assert indoor.fault.error_code == "U4"
+    assert indoor.fault.malfunction and not indoor.fault.warning
 
 
 @pytest.mark.parametrize(
     ("raw", "expected"), [(0xFFF6, -1.0), (0xFF85, -12.3), (225, 22.5)]
 )
 async def test_signed_temperature(modbus_unit, raw, expected):
-    modbus_unit.input[2000] = [0, 0x8202, raw, 0, raw, 0x8000]
+    modbus_unit.input[2000] = [0, 0x8202, raw]
+    modbus_unit.input[2004] = raw
     status = IndoorStatus(modbus_unit)
     await status.async_update()
     assert status.setpoint == expected
     assert status.room_temperature == expected
 
 
-@pytest.mark.parametrize("flags", [0, 0x100, 0x8100])
-async def test_invalid_sensor_is_unknown(modbus_unit, flags):
-    modbus_unit.input[2000] = [0, 0x8202, 225, 0, 234, flags]
+async def test_status_does_not_read_old_board_reserved_words(modbus_unit):
     status = IndoorStatus(modbus_unit)
     await status.async_update()
-    assert status.room_temperature is None
+    assert status.room_temperature == 23.4
+    addresses = {
+        address
+        for event in modbus_unit.read_events
+        for address in range(event.address, event.address + event.count)
+    }
+    assert addresses == {2000, 2001, 2002, 2004}
 
 
 async def test_signed_limits_and_capabilities(modbus_unit):
@@ -76,7 +91,7 @@ async def test_signed_limits_and_capabilities(modbus_unit):
     await caps.async_update()
     assert caps.temperature_limits(Mode.COOL) == (-10, 32)
     assert caps.temperature_limits(Mode.HEAT) == (-20, 30)
-    assert caps.fan_speeds == (1, 3, 5)
+    assert caps.fan_speeds == (0, 1, 3, 5)
     assert caps.directions == (0, 1, 2, 3, 4, 6, 7)
 
 
@@ -137,7 +152,7 @@ async def test_noop_does_not_write(modbus_unit):
 @pytest.mark.parametrize(
     "changes",
     [
-        {"fan_speed": 0},
+        {"fan_speed": 6},
         {"direction": 5},
         {"temperature": 35},
         {"temperature": float("nan")},
@@ -160,7 +175,7 @@ async def test_auto_setpoint_operation_selection(modbus_unit):
     with patch("custom_components.daikin_d3net.device.gateway.asyncio.sleep"):
         await indoor.async_control(temperature=23)
     assert [(event.address, event.values) for event in writes] == [
-        (2001, [0x203]),
+        (2001, [0x03]),
         (2002, [225]),
         (2002, [230]),
     ]
@@ -173,7 +188,7 @@ async def test_slave_setpoint_and_restricted_modes(modbus_unit):
     modbus_unit.on_write(writes.append)
     with patch("custom_components.daikin_d3net.device.gateway.asyncio.sleep"):
         await indoor.async_control(temperature=23)
-    assert writes[0].address == 2001 and writes[0].values == [0x206]
+    assert writes[0].address == 2001 and writes[0].values == [0x06]
     for mode in (Mode.HEAT, Mode.AUTO):
         with pytest.raises(ValueError):
             await indoor.async_control(mode=mode)
@@ -194,7 +209,7 @@ async def test_filter_pulse_and_recovery(modbus_unit):
             await indoor.async_control(reset_filter=True)
         modbus_unit.fail_write(2001, None)
         await indoor.async_update()
-    assert [event.values for event in writes] == [[0x202], [0x2F2], [0x202]]
+    assert [event.values for event in writes] == [[0x02], [0xF2], [0x02]]
     assert not indoor._reset_pending
 
 
@@ -209,7 +224,7 @@ async def test_commands_are_serialized(modbus_unit):
     assert [event.address for event in writes] == [2000, 2000, 2001, 2002, 2002]
 
 
-@pytest.mark.parametrize("index", [0, 15])
+@pytest.mark.parametrize("index", [0, 15, 16, 32, 48, 63])
 async def test_holding_reads_preserve_bits_and_skip_matching_sync(modbus_unit, index):
     seed(modbus_unit, (index,))
     # Bits 15, 11 and 1–3 are outside the power/fan fields we own.
@@ -289,16 +304,15 @@ async def test_holding_read_failures_abort_command(modbus_unit, error_name):
     assert writes
 
 
-async def test_auto_setpoint_preserves_holding_bits_and_selector(modbus_unit):
+async def test_auto_setpoint_preserves_reserved_upper_byte(modbus_unit):
     modbus_unit.input[2000] = [0x5201, 0x8203, 225, 0, 234, 0x8000]
-    # Holding still targets heating; input status now reports Auto cooling.
+    # The old DTA operation selector is reserved on EKMBDXB.
     modbus_unit.holding[2000] = [0x5261, 0xA103, 225]
     indoor = (await gateway_for(modbus_unit)).units[0]
     writes = []
     modbus_unit.on_write(writes.append)
     await indoor.async_control(temperature=23)
     assert [(event.address, event.values) for event in writes] == [
-        (2001, [0xA203]),
         (2002, [230]),
     ]
 
@@ -311,3 +325,77 @@ async def test_filter_reset_preserves_other_holding_bits(modbus_unit):
     with patch("custom_components.daikin_d3net.device.gateway.asyncio.sleep"):
         await indoor.async_control(reset_filter=True)
     assert [event.values for event in writes] == [[0xA2F2], [0xA202]]
+
+
+@pytest.mark.parametrize("index", [16, 31, 32, 47, 48, 63])
+async def test_each_group_communication_failure_blocks_commands(modbus_unit, index):
+    writes = []
+    modbus_unit.on_write(writes.append)
+    seed(modbus_unit, (0, index))
+    gateway = await gateway_for(modbus_unit)
+    modbus_unit.input[5 + index // 16] = 1 << (index % 16)
+    report = await gateway.async_update()
+    assert report.updated == {"1-00"}
+    assert set(report.failed) == {gateway.units[index].name}
+    with pytest.raises(ModbusError, match="not communicating"):
+        await gateway.units[index].async_control(power=False)
+    assert not writes
+
+
+@pytest.mark.parametrize(
+    ("steps", "speeds"),
+    [(1, (5,)), (2, (0, 1, 5)), (3, (0, 1, 3, 5)), (4, ()), (5, (0, 1, 2, 3, 4, 5))],
+)
+async def test_documented_fan_steps(modbus_unit, steps, speeds):
+    writes = []
+    modbus_unit.on_write(writes.append)
+    modbus_unit.input[1000] = [0x8D1F | steps << 12, 0x1020, 0x0A1E]
+    indoor = (await gateway_for(modbus_unit)).units[0]
+    assert indoor.capabilities.fan_speeds == speeds
+    if 0 in speeds:
+        modbus_unit.holding[2000] = [0x5261, 2, 225]
+        await indoor.async_control(fan_speed=0)
+        assert writes[-1].values == [0x0261]
+
+
+@pytest.mark.parametrize(
+    ("word", "code"),
+    [(0x4337, "C7"), (0x5534, "U4"), (0x3030, "00"), (0, None), (0xFF34, None)],
+)
+async def test_extended_faults(modbus_unit, word, code):
+    modbus_unit.input[3600] = [word, 0xA700 | 42]
+    fault = FaultStatus(modbus_unit)
+    await fault.async_update()
+    assert fault.error_code == code
+    assert fault.subcode == 42
+    assert fault.unit_number == 10
+    assert fault.malfunction and fault.alarm and fault.warning
+
+
+async def test_no_fan_unit_does_not_set_fan_control_flag(modbus_unit):
+    writes = []
+    modbus_unit.on_write(writes.append)
+    modbus_unit.input[1000] = [0x1F, 0x1020, 0x0A1E]
+    modbus_unit.holding[2000] = [1, 2, 225]
+    indoor = (await gateway_for(modbus_unit)).units[0]
+    await indoor.async_control(power=False)
+    assert writes[-1].values == [0]
+
+
+async def test_ventilation_only_unit_is_not_exposed_as_climate(modbus_unit):
+    seed(modbus_unit, (0, 16))
+    modbus_unit.input[1048] = [0, 0, 0]
+    gateway = await gateway_for(modbus_unit)
+    assert list(gateway.units) == [0]
+
+
+async def test_auto_temperature_without_current_operation(modbus_unit):
+    writes = []
+    modbus_unit.on_write(writes.append)
+    modbus_unit.input[2000] = [0x5201, 0x8003, 225]
+    modbus_unit.holding[2000] = [0x5261, 0xAB03, 225]
+    indoor = (await gateway_for(modbus_unit)).units[0]
+    await indoor.async_control(temperature=23)
+    assert [(e.address, e.values) for e in writes] == [(2002, [230])]
+    with pytest.raises(ValueError, match="between 16 and 30"):
+        await indoor.async_control(temperature=31)

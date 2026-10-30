@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect a Daikin DTA116A51",
+        "title": "Connect a Daikin EKMBDXB7V1",
         "description": "The adapter uses Modbus RTU over RS485. Choose a serial port, or connect through a Modbus TCP gateway.",
         "menu_options": {
           "tcp": "Modbus TCP",
@@ -11,7 +11,7 @@
       },
       "tcp": {
         "title": "Modbus TCP",
-        "description": "Connect through a gateway that converts Modbus TCP to the adapter’s serial RTU connection.",
+        "description": "Connect through a gateway that converts Modbus TCP to the adapter\u2019s serial RTU connection.",
         "data": {
           "host": "Host",
           "port": "Port",
@@ -19,14 +19,14 @@
           "name": "Name"
         },
         "data_description": {
-          "host": "The gateway’s hostname or IP address.",
-          "port": "The gateway’s Modbus TCP port, usually 502.",
-          "unit_id": "The adapter’s address, set by DIP switches (1–15)."
+          "host": "The gateway\u2019s hostname or IP address.",
+          "port": "The gateway\u2019s Modbus TCP port, usually 502.",
+          "unit_id": "The adapter\u2019s address, set by DIP switches (1\u201315)."
         }
       },
       "serial": {
         "title": "Serial port (Modbus RTU)",
-        "description": "Select the port connected to the adapter’s RS485 terminals. Match the baud rate and parity to its DIP switches.",
+        "description": "Select the port connected to the adapter\u2019s RS485 terminals. Match the baud rate and parity to its DIP switches.",
         "data": {
           "device": "Serial port",
           "baudrate": "Baud rate",
@@ -36,13 +36,13 @@
         },
         "data_description": {
           "device": "Select a local serial port or a port shared over the network by a serial proxy.",
-          "parity": "Even and odd parity use one stop bit. No parity uses two stop bits.",
-          "unit_id": "The adapter’s address, set by DIP switches (1–15)."
+          "parity": "Match the DIP switches: even/odd parity uses one stop bit; no parity supports one or two.",
+          "unit_id": "The adapter\u2019s address, set by DIP switches (1\u201315)."
         }
       }
     },
     "error": {
-      "cannot_connect": "Could not read a ready adapter and at least one communicating indoor unit. Check the connection, Modbus address and DIII-Net wiring.",
+      "cannot_connect": "Could not read a ready EKMBDXB7V1 and at least one communicating climate unit. Check the connection, Modbus address and DIII-Net wiring.",
       "connection_conflict": "This connection is already in use with different settings.",
       "invalid_host": "Enter a hostname or IP address."
     },
@@ -55,7 +55,8 @@
       "options": {
         "e": "Even",
         "o": "Odd",
-        "n": "None"
+        "n": "None (2 stop bits)",
+        "n1": "None (1 stop bit)"
       }
     }
   }

@@ -20,12 +20,18 @@ DATA = {
 
 
 def seed(unit, indexes=(0,)):
-    unit.input.update({0: 1, 1: sum(1 << index for index in indexes), 5: 0})
+    unit.input[0] = [1, 0, 0, 0, 0, 0, 0, 0, 0]
+    for group in range(4):
+        unit.input[1 + group] = sum(
+            1 << (index % 16) for index in indexes if index // 16 == group
+        )
     for index in indexes:
         # All modes, five flap positions, three fan speeds; cooling 16–32, heating 10–30.
         unit.input[1000 + 3 * index] = [0xBD1F, 0x1020, 0x0A1E]
         # On, P2, high fan; cooling master; 22.5 °C; U4 malfunction; 23.4 °C, valid.
-        unit.input[2000 + 6 * index] = [0x5201, 0x8202, 225, 0x294, 234, 0x8000]
+        unit.input[2000 + 6 * index] = [0x5201, 0x8202, 225]
+        unit.input[2004 + 6 * index] = 234
+        unit.input[3600 + 2 * index] = [0x5534, 0x100]
         unit.holding[2000 + 3 * index] = [0, 0, 0]
     return unit
 
