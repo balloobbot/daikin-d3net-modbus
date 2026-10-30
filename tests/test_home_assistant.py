@@ -2,18 +2,22 @@
 
 from unittest.mock import patch
 
+import probatio
 import pytest
 from homeassistant.components.modbus import async_get_unit
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import STATE_UNAVAILABLE
+from homeassistant.const import CONF_DEVICE, STATE_UNAVAILABLE
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.selector import SerialPortSelector
 from homeassistant.loader import async_get_integration
-from modbus_connection import ModbusError
+from modbus_connection import ModbusError, ModbusSerialParams
 from modbus_connection.mock import MockModbusConnection
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.daikin_d3net.connection import connection_params
+from custom_components.daikin_d3net.connection import connection_params, endpoint_id
 from custom_components.daikin_d3net.const import DOMAIN
 
 from .conftest import DATA, seed
@@ -82,31 +86,116 @@ async def test_first_read_failure_retries(hass, mock_entry, modbus_unit):
     assert mock_entry.state is ConfigEntryState.SETUP_RETRY
 
 
-async def test_flow_probes_before_creating_entry(hass):
+SERIAL_DATA = {
+    "transport": "serial",
+    "device": "/dev/serial/by-id/usb-rs485",
+    "baudrate": 9600,
+    "parity": "E",
+    "unit_id": 1,
+    "name": "Daikin",
+}
+
+
+async def start_connection_flow(hass, transport):
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": "user"}
     )
-    assert result["type"] is FlowResultType.FORM
-    with patch("custom_components.daikin_d3net.async_setup_entry", return_value=True):
-        result = await hass.config_entries.flow.async_configure(result["flow_id"], DATA)
-        await hass.async_block_till_done()
-    assert result["type"] is FlowResultType.CREATE_ENTRY
-    assert result["data"] == DATA
-
-
-async def test_flow_rejects_unreachable_device(hass, modbus_unit):
-    modbus_unit.fail_requests(ModbusError("offline"))
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": "user"}, data=DATA
+    assert result["type"] is FlowResultType.MENU
+    assert result["menu_options"] == ["tcp", "serial"]
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"next_step_id": transport}
     )
     assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == transport
+    assert probatio.to_field_list(
+        result["data_schema"], custom_serializer=cv.custom_serializer
+    )
+    if transport == "serial":
+        assert isinstance(result["data_schema"].schema[CONF_DEVICE], SerialPortSelector)
+    return result
+
+
+def form_data(data):
+    fields = {key: value for key, value in data.items() if key != "transport"}
+    if "baudrate" in fields:
+        fields["baudrate"] = str(fields["baudrate"])
+    return fields
+
+
+@pytest.mark.parametrize("data", [DATA, SERIAL_DATA])
+async def test_flow_probes_before_creating_entry(hass, data):
+    result = await start_connection_flow(hass, data["transport"])
+    with patch("custom_components.daikin_d3net.async_setup_entry", return_value=True):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], form_data(data)
+        )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"] == data
+    assert result["result"].unique_id == endpoint_id(data)
+
+
+@pytest.mark.parametrize("data", [DATA, SERIAL_DATA])
+async def test_flow_rejects_unreachable_device(hass, modbus_unit, data):
+    modbus_unit.fail_requests(ModbusError("offline"))
+    result = await start_connection_flow(hass, data["transport"])
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], form_data(data)
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == data["transport"]
     assert result["errors"] == {"base": "cannot_connect"}
 
 
-async def test_duplicate_endpoint(hass, mock_entry):
-    mock_entry.add_to_hass(hass)
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": "user"}, data={**DATA, "host": "GATEWAY.local"}
+@pytest.mark.parametrize("data", [DATA, SERIAL_DATA])
+async def test_flow_connection_conflict(hass, data):
+    result = await start_connection_flow(hass, data["transport"])
+    with patch(
+        "custom_components.daikin_d3net.config_flow.async_get_temporary_unit",
+        side_effect=HomeAssistantError("different settings"),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], form_data(data)
+        )
+    assert result["errors"] == {"base": "connection_conflict"}
+
+
+@pytest.mark.parametrize("data", [DATA, SERIAL_DATA])
+async def test_duplicate_endpoint(hass, data):
+    MockConfigEntry(domain=DOMAIN, data=data, unique_id=endpoint_id(data)).add_to_hass(
+        hass
+    )
+    fields = form_data(data)
+    if data["transport"] == "tcp":
+        fields["host"] = " GATEWAY.local "
+    result = await start_connection_flow(hass, data["transport"])
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], fields)
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+@pytest.mark.parametrize(
+    "device", ["/dev/serial/by-id/usb-rs485", "socket://gateway.local:6638"]
+)
+@pytest.mark.parametrize(("parity", "stopbits"), [("E", 1), ("O", 1), ("N", 2)])
+async def test_serial_setup_parameters(hass, shared_unit, device, parity, stopbits):
+    data = {**SERIAL_DATA, "device": device, "baudrate": 19200, "parity": parity}
+    entry = MockConfigEntry(domain=DOMAIN, data=data, unique_id=endpoint_id(data))
+    await setup_entry(hass, entry)
+    assert shared_unit.call_args.args[2] == ModbusSerialParams(
+        device=device, baudrate=19200, parity=parity, stopbits=stopbits
+    )
+
+
+async def test_serial_proxy_duplicate_of_legacy_entry(hass):
+    legacy = {**DATA, "transport": "rtu_over_tcp"}
+    MockConfigEntry(
+        domain=DOMAIN, data=legacy, unique_id=endpoint_id(legacy)
+    ).add_to_hass(hass)
+    result = await start_connection_flow(hass, "serial")
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        form_data({**SERIAL_DATA, "device": "socket://gateway.local:502"}),
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
@@ -239,3 +328,25 @@ async def test_all_platform_controls(hass, mock_entry, modbus_unit):
             "button", "press", {"entity_id": entity_id("filter_reset")}, blocking=True
         )
         assert writes[-1].values[0] & 0xF0 == 0
+
+
+async def test_tcp_empty_host(hass):
+    result = await start_connection_flow(hass, "tcp")
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**form_data(DATA), "host": "  "}
+    )
+    assert result["errors"] == {"host": "invalid_host"}
+
+
+async def test_serial_retry_keeps_baud_rate(hass, modbus_unit):
+    modbus_unit.fail_requests(ModbusError("offline"))
+    result = await start_connection_flow(hass, "serial")
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], form_data({**SERIAL_DATA, "baudrate": 19200})
+    )
+    assert result["errors"] == {"base": "cannot_connect"}
+    fields = probatio.to_field_list(
+        result["data_schema"], custom_serializer=cv.custom_serializer
+    )
+    baud = next(field for field in fields if field["name"] == "baudrate")
+    assert baud["description"]["suggested_value"] == "19200"

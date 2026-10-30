@@ -18,7 +18,7 @@ The register map comes from Daikin's [EDMT721419 engineering manual](docs/EDMT72
 - Filter reset button.
 - Separate power switch, setpoint number and mode/fan/direction selects. These duplicate climate controls and are disabled by default. Enable them in entity settings if needed.
 
-Connect through a Modbus TCP gateway or an RTU-over-TCP bridge. Match the bridge's serial settings to the adapter's DIP switches. The 64-unit EKMBDXB model, DCPA01 and hot-water functions are outside the current scope.
+The adapter uses Modbus RTU over RS485. Connect it to a serial port on Home Assistant, a network serial proxy, or a Modbus TCP gateway. The 64-unit EKMBDXB model, DCPA01 and hot-water functions are outside the current scope.
 
 ## Installation
 
@@ -27,7 +27,11 @@ Requires Home Assistant 2026.10.4 or later. No Modbus YAML configuration is need
 1. Open this repository in HACS using the button at the top right, then download the integration. You can also add `https://github.com/balloobbot/daikin-d3net-modbus` as a custom **Integration** repository. For manual installation, copy `custom_components/daikin_d3net` into your Home Assistant `config/custom_components` directory.
 2. Restart Home Assistant.
 3. Add **Daikin DIII-Net (DTA116A51)** in Settings → Devices & services.
-4. Enter the gateway host, port, connection type and adapter Modbus address (1–15).
+4. Choose **Modbus TCP** or **Serial port (Modbus RTU)**.
+5. For TCP, enter the gateway's hostname or IP address and port (usually 502). For RTU, select a local or network serial port and set the baud rate and parity to match the adapter's DIP switches. The adapter uses eight data bits, with one stop bit for even/odd parity or two for no parity.
+6. Enter the adapter's Modbus address (1–15).
+
+A serial proxy carries RTU frames over the network and belongs under **Serial port (Modbus RTU)**. Choose **Modbus TCP** only for a gateway that converts between Modbus TCP and RTU. Existing RTU-over-TCP entries keep their connection settings.
 
 Setup requires a ready adapter with at least one connected indoor unit. Reload the integration after adding or removing units. Configure adapter EEPROM settings and DIII master/start settings using the installer's tools.
 
