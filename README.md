@@ -28,7 +28,7 @@ Requires **Home Assistant 2026.10.4 or later**. Home Assistant's `modbus` integr
 
 After installing the custom integration and restarting Home Assistant, use this button to open its setup flow:
 
-[![Add the integration to your Home Assistant instance.](https://my.home-assistant.io/badges/config_flow.svg)](https://my.home-assistant.io/redirect/config_flow/?domain=daikin_d3net)
+[![Add the integration to your Home Assistant instance.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=daikin_d3net)
 
 Configuration performs read-only discovery before creating an entry. An unready adapter or an installation without a communicating indoor unit cannot complete setup. Home Assistant retries failed startup reads automatically.
 
