@@ -8,7 +8,7 @@
 
 A Home Assistant custom integration for the Daikin DTA116A51 DIII-Net/Modbus adapter, built with `modbus-connection`.
 
-The register map comes from Daikin's [EDMT721419 engineering manual](docs/EDMT721419-DTA116A51.pdf). Command preparation also reads holding registers, as the older integration does. The DTA116A51 manual omits this read function (FC03); hardware testing is still needed. See the [protocol reference](docs/protocol.md) for addresses and command sequencing.
+The register map comes from Daikin's [EDMT721419 engineering manual](docs/EDMT721419-DTA116A51.pdf). Command preparation also reads holding registers, as the older integration does. The DTA116A51 manual omits this read function (FC03); hardware testing is still needed. See the [protocol reference](docs/protocol.md) for addresses and command sequencing, and the [document archive](docs/README.md) for related Daikin and CoolMaster manuals.
 
 ## Features
 

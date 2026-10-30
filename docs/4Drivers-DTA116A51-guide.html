@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>4Drivers Daikin DTA116A51 VRV VRF UI</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.65;color:#1a1a2e;background:#f5f6fa}
+a{color:#0057b8;text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Layout */
+.page{max-width:860px;margin:0 auto;padding:24px 20px 60px}
+
+/* Header */
+.doc-header{display:flex;align-items:center;gap:20px;padding:20px 24px;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.10);margin-bottom:28px}
+.doc-header img{height:52px;object-fit:contain}
+.doc-header-text h1{font-size:20px;font-weight:700;color:#0a2540;margin-bottom:4px}
+.doc-header-text .meta{font-size:12px;color:#6b7a99;line-height:1.5}
+.doc-header-text .meta span{display:inline-block;margin-right:12px}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;background:#e8f0fe;color:#1a56db;margin-left:6px}
+
+/* Cards */
+.card{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:24px;margin-bottom:20px}
+.card+.card{margin-top:0}
+
+/* Headings */
+h2{font-size:16px;font-weight:700;color:#0a2540;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #e8f0fe}
+h3{font-size:13px;font-weight:700;color:#344767;margin:16px 0 8px;text-transform:uppercase;letter-spacing:.04em}
+
+/* Paragraphs & lists */
+p{margin-bottom:10px;color:#344767}
+ul,ol{margin:0 0 10px 20px;color:#344767}
+ul li,ol li{margin-bottom:5px}
+strong{color:#0a2540}
+
+/* Callout box */
+.callout{background:#e8f4fd;border-left:4px solid #1a73e8;border-radius:0 8px 8px 0;padding:12px 16px;margin-bottom:14px;color:#1a4a7a;font-size:13px}
+.callout.warn{background:#fff8e1;border-color:#f9a825;color:#7a5c00}
+.callout.ok{background:#e8f5e9;border-color:#2e7d32;color:#1b5e20}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px}
+thead tr{background:#0a2540;color:#fff}
+thead th{padding:9px 12px;text-align:left;font-weight:600;font-size:12px;letter-spacing:.03em}
+tbody tr:nth-child(even){background:#f5f6fa}
+tbody tr:hover{background:#eef2ff}
+tbody td{padding:9px 12px;border-bottom:1px solid #e8ecf0;vertical-align:top;color:#344767}
+tbody td:first-child{font-weight:600;color:#0a2540;white-space:nowrap}
+
+/* Step list */
+.steps{counter-reset:step;list-style:none;margin:0 0 10px}
+.steps li{counter-increment:step;display:flex;gap:12px;margin-bottom:12px;align-items:flex-start}
+.steps li::before{content:counter(step);min-width:26px;height:26px;background:#1a73e8;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+
+/* Code */
+code{background:#eef2ff;color:#3730a3;border-radius:4px;padding:1px 5px;font-family:"Courier New",Courier,monospace;font-size:12px}
+
+/* Event badges */
+.ev{display:inline-block;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:600;margin-right:4px}
+.ev-on{background:#e8f5e9;color:#1b5e20}
+.ev-off{background:#fce8e8;color:#7a0000}
+
+/* Section divider */
+.divider{height:1px;background:#e8ecf0;margin:8px 0 20px}
+
+/* Footer */
+.footer{text-align:center;font-size:11px;color:#9aa5b4;margin-top:32px}
+.lang-bar{text-align:right;margin-bottom:12px;font-size:12px}
+.lang-bar a{display:inline-block;padding:4px 12px;border-radius:20px;border:1px solid #1a73e8;color:#1a73e8;font-weight:600;transition:.15s}
+.lang-bar a:hover{background:#1a73e8;color:#fff;text-decoration:none}
+.fig{text-align:center;margin:10px 0 16px}
+.fig img{max-width:min(100%,460px);border-radius:8px;border:1px solid #e8ecf0}
+.fig .cap{font-size:12px;color:#6b7a99;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="lang-bar"><a href="index.html">🇧🇷 Versao em portugues</a></div>
+  <div class="doc-header">
+    <img src="logo_docs.jpg" alt="4Drivers">
+    <div class="doc-header-text">
+      <h1>4Drivers Daikin DTA116A51 VRV VRF UI <span class="badge">Gateway</span></h1>
+      <div class="meta"><span><strong>Manufacturer:</strong> Daikin (via 4Drivers)</span><span><strong>Hardware:</strong> DTA116A51 adapter (RS-485)</span><span><strong>Minimum OS:</strong> Control4 3.3.0</span></div>
+    </div>
+  </div>
+  <div class="card">
+<h2>Overview</h2>
+<p>The <strong>4Drivers Daikin DTA116A51 VRV VRF UI</strong> integrates Daikin VRV/VRF systems with Control4 through the <strong>Daikin DTA116A51</strong> adapter (RS-485). One adapter controls up to <strong>64 indoor units</strong> (4 DIII-Net groups of 16).</p>
+<ul>
+<li><strong>A single connection</strong> for all thermostats: each <strong>4Drivers Daikin Thermostat</strong> binds to the gateway on its own and tells which unit it controls through its <strong>Unit ID</strong></li>
+<li><strong>Web UI</strong> on the driver button (Navigator/Composer): control and readings of every unit, with "Find units" and "All Off"</li>
+<li>Cool, Heat, Fan, Auto and Dry modes; Low/Medium/High fan; P0-P4 and Swing louver</li>
+<li>Daikin error code (e.g. U4, A3), Forced Off and Cool/Heat master per unit</li>
+<li>Celsius or Fahrenheit</li>
+<li>Adjustable on/off methods for sites where the original Daikin controller is also used</li>
+<li>Built-in 4Drivers licensing/trial</li>
+</ul>
+<div class="callout">This driver <strong>has no thermostat card</strong>. To get a card for each indoor unit on the Control4 interfaces, add one <strong>4Drivers Daikin Thermostat</strong> per unit. Without a thermostat, a unit can be controlled from the Web UI only.</div>
+  </div>
+  <div class="card">
+<h2>Requirements</h2>
+<ul>
+<li><strong>DTA116A51</strong> adapter (or newer, same protocol) installed on the DIII-Net bus</li>
+<li>Board ID starting with <strong>EB</strong> (e.g. EB11042(A)). <strong>DCPP</strong> boards are not compatible</li>
+<li>Controller serial port with a powered RS-232/RS-485 converter, or an IP/RS-485 converter with the 4Drivers RS-232 RS-485 - IP Gateway driver</li>
+<li>Control4 OS 3.3.0 or later (required by the Web UI)</li>
+</ul>
+<div class="fig"><img src="daikin_board_eb_code.gif" alt="Board ID starting with EB"><div class="cap">Board ID starting with EB</div></div>
+  </div>
+  <div class="card">
+<h2>Step-by-Step Setup</h2>
+<h3>1 &mdash; DTA116A51 board</h3>
+<ol class="steps">
+<li>Set <strong>DS1</strong> to <code>19200 8 even 1</code> (19200 bps, 8 data bits, even parity, 1 stop bit)</li>
+<li>Set <strong>DS2</strong> to the board Modbus address (1 to 15). Enter the same number in <strong>MODBUS Address</strong></li>
+<li>When using an IP/RS-485 converter, set it to <code>19200 8 even 1 none</code></li>
+</ol>
+<div class="fig"><img src="daikin_ds1_ds2_photo.gif" alt="DS1 (serial) and DS2 (address) - black shows the switch position"><div class="cap">DS1 (serial) and DS2 (address) - black shows the switch position</div></div>
+<div class="fig"><img src="daikin_ds2_address_table.gif" alt="DS2 positions for addresses 1 to 15"><div class="cap">DS2 positions for addresses 1 to 15</div></div>
+<h3>2 &mdash; Add the gateway</h3>
+<ol class="steps">
+<li>In Composer Pro, add the <strong>4Drivers Daikin DTA116A51 VRV VRF UI</strong> and connect <strong>Serial RS-232</strong> to the controller serial port (or to the IP converter driver)</li>
+<li>Check <strong>MODBUS Address</strong> = DS2 address</li>
+<li>Enter the <strong>License Key</strong> (or keep "Trial") and check <strong>Validation</strong></li>
+</ol>
+<h3>3 &mdash; Find the units</h3>
+<ol class="steps">
+<li>Under Actions, run <strong>Scan Units</strong> (or "Find units" in the Web UI)</li>
+<li><strong>Message</strong> lists the Unit IDs that answered</li>
+</ol>
+<h3>4 &mdash; Add the thermostats</h3>
+<p>Add one <strong>4Drivers Daikin Thermostat</strong> per indoor unit and fill in its <strong>Unit ID</strong>, calculated from the address shown on the Daikin controller:</p>
+<table><thead><tr><th>DIII-Net group</th><th>Addresses on the Daikin controller</th><th>Unit ID</th></tr></thead><tbody><tr><td>1</td><td>1-00 ... 1-15</td><td>0 ... 15</td></tr><tr><td>2</td><td>2-00 ... 2-15</td><td>16 ... 31</td></tr><tr><td>3</td><td>3-00 ... 3-15</td><td>32 ... 47</td></tr><tr><td>4</td><td>4-00 ... 4-15</td><td>48 ... 63</td></tr></tbody></table>
+<p>Example: unit <code>2-05</code> = Unit ID <code>21</code> (16 + 5).</p>
+<div class="callout ok">Done. The cards follow the real state of the units, including changes made on the Daikin controller. <strong>Communication Status</strong> shows <code>OK</code> while the board answers.</div>
+  </div>
+  <div class="card">
+<h2>Properties</h2>
+<table><thead><tr><th>Property</th><th>Default</th><th>Description</th></tr></thead><tbody><tr><td>MODBUS Address</td><td>1</td><td>Board address set on DS2</td></tr><tr><td>Polling Interval</td><td>60</td><td>Seconds between reads of each unit with a thermostat (30-360)</td></tr><tr><td>Commands Delay</td><td>100</td><td>Milliseconds between commands sent to the board (30-1000). Daikin recommends spacing writes - raise it if commands get lost</td></tr><tr><td>UI Temperature Scale</td><td>Celsius</td><td>Scale used in the Web UI</td></tr><tr><td>Off Method / On Method</td><td>V5 / V6</td><td>How the driver turns units on and off - see below</td></tr><tr><td>Master ID 1/2/3 and Slaves</td><td>-1 / empty</td><td>Sites with more than one outdoor unit - see below</td></tr><tr><td>Icon Type</td><td>Icon 3</td><td>Icon shown in Navigator</td></tr><tr><td>Communication Status</td><td>-</td><td>OK while the board answers; warns when it stops answering</td></tr><tr><td>Message</td><td>-</td><td>Status messages and Scan Units result</td></tr><tr><td>License Key / Validation</td><td>Trial</td><td>4Drivers license key and status</td></tr><tr><td>Cloud Status / Automatic Updates</td><td>-</td><td>DriverCentral version: DriverCentral license status and automatic driver updates</td></tr><tr><td>Debug Mode</td><td>Off</td><td>Support use</td></tr></tbody></table>
+<h3>Actions</h3>
+<table><thead><tr><th>Action</th><th>Description</th></tr></thead><tbody><tr><td>Scan Units</td><td>Checks all 64 addresses and lists the ones with a unit</td></tr><tr><td>Refresh All Units</td><td>Reads every unit with a thermostat right away</td></tr></tbody></table>
+  </div>
+  <div class="card">
+<h2>On and Off Methods</h2>
+<p>The DTA116A51 only forwards a command to the VRV when the value it receives differs from the last one it stored. When the customer uses the original Daikin controller, that stored value does not change - and the next on/off from Control4 may be ignored. <strong>Off Method</strong> and <strong>On Method</strong> choose how the driver works around it.</p>
+<h3>Off Method</h3>
+<table><thead><tr><th>Option</th><th>What it does</th><th>When to use</th></tr></thead><tbody><tr><td>V5 (default)</td><td>Reads the unit's real state first and switches off on top of it. Follows the Daikin manual procedure.</td><td>First choice</td></tr><tr><td>V6</td><td>Reinforced off and, a few seconds later, checks that the unit is really off; resends once if not.</td><td>Stubborn "sometimes won't turn off" cases</td></tr><tr><td>2X</td><td>Sends the off command twice.</td><td>Occasional lost command on the serial line</td></tr><tr><td>V1</td><td>Resends setpoint/mode/fan before switching off.</td><td>Alternative to V5</td></tr><tr><td>V2</td><td>Same as the plain off command.</td><td>Avoid</td></tr><tr><td>V3</td><td>Off, resend setpoint, off again.</td><td>If V1 and 2X do not help</td></tr><tr><td>V4</td><td>Fan/louver written separately with pauses before the off.</td><td>Commands arriving too fast (automations)</td></tr></tbody></table>
+<h3>On Method</h3>
+<table><thead><tr><th>Option</th><th>What it does</th><th>When to use</th></tr></thead><tbody><tr><td>Normal</td><td>Mode only, no reinforcement.</td><td>Sites where the original controller is never used</td></tr><tr><td>Turn Off and On</td><td>Switches off before switching on (effective in Cool).</td><td>Intermediate</td></tr><tr><td>V4</td><td>Turns on after reading the real state and forces an off/on 3 s later.</td><td>If V6/V7/V8 do not help</td></tr><tr><td>V5</td><td>Reads the real state before turning on (Daikin manual).</td><td>Alternative to the default</td></tr><tr><td>V6 (default)</td><td>OFF, ON, MODE sequence - reinforcement in Cool only.</td><td>Factory default</td></tr><tr><td>V7</td><td>Same sequence as V6 for every mode (Cool/Heat/Fan/Auto/Dry).</td><td>"Won't turn on" in Heat or Fan</td></tr><tr><td>V8</td><td>V7 + checks that the unit turned on and resends once.</td><td>Stubborn "sometimes won't turn on" cases</td></tr></tbody></table>
+<div class="callout">Sites with a history of "sometimes won't turn on/off": start with <strong>Off Method = V6</strong> and <strong>On Method = V8</strong>, the two methods that check the result and resend on their own.</div>
+  </div>
+  <div class="card">
+<h2>VRV Groups (Master ID)</h2>
+<p>Only for sites with more than one outdoor unit. In each group the <strong>master</strong> unit decides Cool/Heat for the whole group; a slave asking for Cool while its master is in Heat may have no effect.</p>
+<ul>
+<li><strong>Master ID 1</strong>: Unit ID of the master unit of group 1 (<code>-1</code> = off)</li>
+<li><strong>Master ID 1 Slaves</strong>: Unit IDs of the group, comma separated (e.g. <code>2,3,6</code>)</li>
+<li>Same for groups 2 and 3</li>
+</ul>
+<p>When a slave turns on or changes mode, the driver first sets only the mode of its group master - without turning the master unit on.</p>
+  </div>
+  <div class="card">
+<h2>Web UI</h2>
+<ul>
+<li>One card per unit on the page: mode (including Auto and Dry), fan, louver, setpoint and room temperature</li>
+<li>Malfunction/warning alerts with the Daikin code, Forced Off, filter, sensor error and Cool/Heat master</li>
+<li><strong>Find units</strong>: tap a unit found to show it on or remove it from the page (with or without a thermostat)</li>
+<li><strong>Rename</strong>: tap the card name. When the unit's thermostat is renamed in the project, the page follows</li>
+<li><strong>All Off</strong> (units on the page)</li>
+<li>List, names and last scan result are saved</li>
+<li>Debug panel (🐞 icon) to diagnose communication between the page and the driver</li>
+</ul>
+<div class="callout">With the unit off, the chosen fan and louver are stored and applied when it turns on. The setpoint can be changed while the unit is off.</div>
+<div class="fig"><img src="UI_1.png" alt="Web UI: units found by the scan and one card per unit"><div class="cap">Web UI: units found by the scan and one card per unit</div></div>
+  </div>
+  <div class="card">
+<h2>Troubleshooting</h2>
+<table><thead><tr><th>Problem</th><th>Solution</th></tr></thead><tbody><tr><td>Communication Status shows no answer from the adapter</td><td>Check cable and RS-485 converter, DS1 (19200 8 even 1) and that MODBUS Address matches DS2</td></tr><tr><td>Scan Units finds nothing</td><td>Same checks as above. Also confirm the units show up on the Daikin central controller</td></tr><tr><td>Thermostat Online = No</td><td>No unit at that Unit ID - run Scan Units and fix the Unit ID</td></tr><tr><td>"Sometimes won't turn on/off"</td><td>Try On Method = V8 and Off Method = V6</td></tr><tr><td>Won't turn on with any method</td><td>On the thermostat: Forced Off = Yes means an external lock (interlock, float switch, emergency stop) - only the HVAC contractor can clear it. If the unit is a Slave, check its group master (Master ID)</td></tr><tr><td>Error with a code (e.g. U4)</td><td>Daikin code, same as on the remote controller - see Daikin service documentation</td></tr><tr><td>Validation "Trial Mode Expired"</td><td>Enter a valid License Key from 4Drivers</td></tr></tbody></table>
+  </div>
+  <div class="card">
+<h2>Coming from the previous driver (64 outputs)</h2>
+<p>This driver replaces the 64 "Daikin UNIT-n" outputs with a single connection. The old <strong>UNIT-n</strong> output number is the <strong>Unit ID</strong> of the new thermostat. MODBUS Address, Commands Delay, Off/On Method and Master ID work the same.</p>
+  </div>
+  <div class="card">
+<h2>Change Log</h2>
+<table><thead><tr><th>Version</th><th>Changes</th></tr></thead><tbody><tr><td>1100</td><td>Initial version</td></tr></tbody></table>
+  </div>
+
+  <div class="footer">
+    <p>4Drivers</p>
+  </div>
+</div>
+</body>
+</html>
