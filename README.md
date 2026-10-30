@@ -26,6 +26,10 @@ Requires **Home Assistant 2026.10.4 or later**. Home Assistant's `modbus` integr
 3. Add **Daikin DIII-Net (DTA116A51)** in Settings → Devices & services.
 4. Enter the gateway host/port, connection type, and the adapter's Modbus address (1–15).
 
+After installing the custom integration and restarting Home Assistant, use this button to open its setup flow:
+
+[![Add the integration to your Home Assistant instance.](https://my.home-assistant.io/badges/config_flow.svg)](https://my.home-assistant.io/redirect/config_flow/?domain=daikin_d3net)
+
 Configuration performs read-only discovery before creating an entry. An unready adapter or an installation without a communicating indoor unit cannot complete setup. Home Assistant retries failed startup reads automatically.
 
 ### Replacing the older custom integration
