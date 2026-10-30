@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect a Daikin EKMBDXB7V1",
+        "title": "Connect a Daikin Modbus adapter",
         "description": "The adapter uses Modbus RTU over RS485. Choose a serial port, or connect through a Modbus TCP gateway.",
         "menu_options": {
           "tcp": "Modbus TCP",
@@ -11,40 +11,57 @@
       },
       "tcp": {
         "title": "Modbus TCP",
-        "description": "Connect through a gateway that converts Modbus TCP to the adapter\u2019s serial RTU connection.",
+        "description": "Connect through a gateway that converts Modbus TCP to the adapter’s serial RTU connection.",
         "data": {
           "host": "Host",
           "port": "Port",
           "unit_id": "Modbus address",
-          "name": "Name"
+          "name": "Name",
+          "adapter_model": "Modbus adapter model"
         },
         "data_description": {
-          "host": "The gateway\u2019s hostname or IP address.",
-          "port": "The gateway\u2019s Modbus TCP port, usually 502.",
-          "unit_id": "The adapter\u2019s address, set by DIP switches (1\u201315)."
+          "host": "The gateway’s hostname or IP address.",
+          "port": "The gateway’s Modbus TCP port, usually 502.",
+          "unit_id": "The adapter’s address, set by DIP switches (1–15).",
+          "adapter_model": "Check the model printed on the Modbus adapter, not the air conditioner."
         }
       },
       "serial": {
         "title": "Serial port (Modbus RTU)",
-        "description": "Select the port connected to the adapter\u2019s RS485 terminals. Match the baud rate and parity to its DIP switches.",
+        "description": "Select the port connected to the adapter’s RS485 terminals. Match the baud rate and parity to its DIP switches.",
         "data": {
           "device": "Serial port",
           "baudrate": "Baud rate",
           "parity": "Parity",
           "unit_id": "Modbus address",
-          "name": "Name"
+          "name": "Name",
+          "adapter_model": "Modbus adapter model"
         },
         "data_description": {
           "device": "Select a local serial port or a port shared over the network by a serial proxy.",
-          "parity": "Match the DIP switches: even/odd parity uses one stop bit; no parity supports one or two.",
-          "unit_id": "The adapter\u2019s address, set by DIP switches (1\u201315)."
+          "parity": "Match the DIP switches. DTA116A51 requires two stop bits with no parity; EKMBDXB7V1 also supports one.",
+          "unit_id": "The adapter’s address, set by DIP switches (1–15).",
+          "adapter_model": "Check the model printed on the Modbus adapter, not the air conditioner."
+        }
+      },
+      "reconfigure": {
+        "title": "Modbus adapter model",
+        "description": "Select the model printed on the adapter. This determines the register map and available entities. Existing connection settings and shared entity IDs are kept.",
+        "data": {
+          "adapter_model": "Modbus adapter model",
+          "parity": "Parity"
+        },
+        "data_description": {
+          "adapter_model": "DTA116A51 uses 16 addresses; EKMBDXB7V1 uses 64.",
+          "parity": "Match the DIP switches. DTA116A51 requires two stop bits with no parity; EKMBDXB7V1 also supports one."
         }
       }
     },
     "error": {
-      "cannot_connect": "Could not read a ready EKMBDXB7V1 and at least one communicating climate unit. Check the connection, Modbus address and DIII-Net wiring.",
+      "cannot_connect": "Could not read the selected adapter and at least one communicating climate unit. Check the model, connection, Modbus address and DIII-Net wiring.",
       "connection_conflict": "This connection is already in use with different settings.",
-      "invalid_host": "Enter a hostname or IP address."
+      "invalid_host": "Enter a hostname or IP address.",
+      "invalid_parity": "DTA116A51 requires two stop bits with no parity."
     },
     "abort": {
       "already_configured": "This adapter is already configured."

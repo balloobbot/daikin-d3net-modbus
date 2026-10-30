@@ -1,6 +1,7 @@
 """Integration constants."""
 
 DOMAIN = "daikin_d3net"
+CONF_ADAPTER_MODEL = "adapter_model"
 CONF_UNIT_ID = "unit_id"
 CONF_TRANSPORT = "transport"
 CONF_BAUDRATE = "baudrate"

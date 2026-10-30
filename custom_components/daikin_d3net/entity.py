@@ -8,7 +8,6 @@ from modbus_connection import ModbusError
 from .connection import endpoint_id
 from .const import DOMAIN
 from .coordinator import D3netCoordinator
-from .device import Mode
 
 
 class D3netEntity(CoordinatorEntity[D3netCoordinator]):
@@ -23,7 +22,7 @@ class D3netEntity(CoordinatorEntity[D3netCoordinator]):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, identity)},
             manufacturer="Daikin",
-            model="EKMBDXB7V1",
+            model=unit.profile.model,
             name=f"{entry.title} {unit.name}",
         )
 
@@ -46,21 +45,4 @@ class D3netEntity(CoordinatorEntity[D3netCoordinator]):
             await self.coordinator.async_request_refresh()
 
     def temperature_limits(self) -> tuple[int, int]:
-        """Use the active mode's limits; use supported-mode bounds before a read."""
-        mode = self.unit.status.mode
-        if mode == Mode.AUTO:
-            ranges = [
-                self.unit.capabilities.temperature_limits(candidate)
-                for candidate in (Mode.HEAT, Mode.COOL)
-            ]
-            return max(low for low, _ in ranges), min(high for _, high in ranges)
-        if mode in (Mode.COOL, Mode.HEAT):
-            return self.unit.capabilities.temperature_limits(mode)
-        ranges = [
-            self.unit.capabilities.temperature_limits(candidate)
-            for candidate in (Mode.COOL, Mode.HEAT)
-            if candidate in self.unit.capabilities.modes
-        ]
-        if not ranges:
-            return (7, 35)
-        return min(low for low, _ in ranges), max(high for _, high in ranges)
+        return self.unit.temperature_limits()

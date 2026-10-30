@@ -1,8 +1,12 @@
-# EKMBDXB7V1 protocol reference
+# Daikin adapter profiles
+
+Setup requires an explicit DTA116A51 or EKMBDXB7V1 selection. Reads, command masks and entities follow that profile; there is no automatic fallback between maps. Connected-unit capabilities further restrict climate controls.
+
+## EKMBDXB7V1
 
 Primary source: [Daikin design guide 4P642495-1A, February 2022](EKMBDXB-design-guide-4P642495-1A.pdf). Page numbers below are printed guide pages; add one for the PDF viewer. This is the public revision available to us, not confirmation of the latest firmware's capabilities. Daikin directs installers to its Business Portal for software releases (page 40).
 
-## Address map
+### Address map
 
 The adapter supports 64 DIII addresses, `1-00` through `4-15`. For zero-based indoor index `i`, the group address is `(i // 16 + 1)-(i % 16)`. Components receive the one-based index `i + 1`.
 
@@ -21,7 +25,7 @@ Input registers report live state (FC04). Holding registers store commands (FC03
 
 Each read is limited to 32 registers and writes to 30 (pages 11–13). The implementation reads only documented fields, merging adjacent addresses. In particular, it does not read the older DTA116A51 error word at `32004` or sensor flags at `32006`, which are absent from this guide.
 
-## Capabilities and status
+### Capabilities and status
 
 Climate capabilities describe supported modes, fan speeds, flap positions and signed eight-bit temperature limits. The limit words store the minimum in the high byte and maximum in the low byte.
 
@@ -40,7 +44,7 @@ Setpoint and measured temperature are signed 16-bit values in tenths of a degree
 
 Fault codes are two ASCII characters, high byte first. `0x4337` means `C7`; `0x3030` means no fault (`00`). Non-printable values are reported as unknown. The following word contains the affected unit number in bits 12–15, warning/alarm/error flags in bits 10/9/8, and a six-bit subcode. A subcode is meaningful only for codes that define one (page 31).
 
-## Command sequencing
+### Command sequencing
 
 1. Read adapter communication status and the unit's live climate fields.
 2. Validate capabilities, setpoint limits and cool/heat role before writing.
@@ -56,12 +60,41 @@ The fan-control nibble is `6` when the unit has fan-speed or direction control, 
 
 State refreshes from input registers every ten seconds. A write acknowledgement does not update displayed state. Failed commands are not automatically repeated, since the adapter may have accepted a write whose response was lost.
 
-## Connection and scope
+### Connection and scope
 
 EKMBDXB7V1 uses RS485 Modbus RTU at 9600 or 19200 baud, with a DIP-switch address of 1–15. Even/odd parity uses one stop bit; no parity supports one or two (page 10). Setup offers a serial port, including a serial proxy, or a Modbus TCP gateway that converts TCP to RTU.
 
-The current implementation covers climate controls and diagnostics. The guide also documents ventilation, controller locks, central forced-off and water-system functions; these are not implemented. Controller locks and central forced-off are available only when no other central DIII device is detected (pages 20, 32 and 38). No compatibility with DTA116A51 or DCPA01 is inferred from shared addresses.
+The current implementation covers climate controls and diagnostics. The guide also documents ventilation, controller locks, central forced-off and water-system functions; these are not implemented. Controller locks and central forced-off are available only when no other central DIII device is detected (pages 20, 32 and 38). DTA116A51 uses the separate profile below. DCPA01 is not supported.
 
 Daikin limits control commands to 7,000 per unit per year (page 4). Unchanged commands are skipped, but this limit is not counted or enforced.
 
 Hardware validation and Daikin's current firmware-specific specification are still needed. The older integration is used only to cross-check shared climate decoding, not to define EKMBDXB7V1 behavior.
+
+## DTA116A51
+
+Source: [EDMT721419](EDMT721419-DTA116A51.pdf), containing functional specification CB13A033. References below use the specification's internal page numbers (add 18 for the PDF viewer).
+
+| Function | Zero-based input address | Width | Specification page |
+| --- | --- | --- | --- |
+| Readiness | 0 | 1 | 15 |
+| Connected units | 1 | 1 | 16 |
+| Communication errors | 5 | 1 | 17 |
+| Climate capabilities | 1000 + 3i | 3 | 18–19 |
+| Unit status, fault code and sensor flags | 2000 + 6i | 6 | 20–23 |
+
+Discovery is limited to indices 0–15, addresses `1-00` through `1-15`. This profile does not read the extra adapter bitmaps or EKMBDXB fault block. Holding commands use `2000 + 3i`, as on EKMBDXB, but their contents differ:
+
+- The mode word's bits 8–11 select heating or cooling for Auto setpoints. The control mask is `0x0FFF`, rather than EKMBDXB's `0x00FF`. Auto requires a current heating/cooling operation and uses that operation's temperature limits.
+- The fan-control nibble is always `6`. The documented speeds are fixed (5), two-step (1, 5) and three-step (1, 3, 5). Auto fan and five-step speeds are not exposed.
+- Fault code values are packed into the fourth status word, with malfunction and warning flags. The sixth word contains sensor-error and data-received flags. Temperature stays unknown until received without an error.
+- Entities include the temperature-sensor fault. Alarm, fault subcode and affected-unit-number entities are not created.
+
+The DTA116A51 manual omits FC03. This profile retains holding reads used by the original integration, with no fallback if a read fails. Hardware validation remains outstanding. Command synchronization, per-register write spacing, dependent-mode handling and filter-reset recovery are shared with the EKMBDXB profile.
+
+DTA116A51 uses one stop bit with even/odd parity and two with no parity. Setup rejects the EKMBDXB-only no-parity/one-stop-bit option.
+
+## Existing entries
+
+Earlier releases stored no board model. They cannot be classified reliably from the config-entry version, so setup requests an explicit selection through Reconfigure before opening a connection. Selecting a model probes its input map without writing commands. Successful reads verify communication, not physical board identity.
+
+Reconfiguration keeps common entity IDs and connection settings. After a successful setup, it removes unsupported profile-specific diagnostics and addresses outside the selected board's range. Unit-capability controls are rebuilt on reload.

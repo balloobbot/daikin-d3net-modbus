@@ -18,7 +18,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(
         D3netSensor(coordinator, unit, key)
         for unit in coordinator.gateway.units.values()
-        for key in ("temperature", "state", "error_code", "error_subcode", "error_unit")
+        for key in unit.profile.sensor_keys
     )
 
 

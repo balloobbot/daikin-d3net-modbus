@@ -1,4 +1,4 @@
-"""Protocol regression tests against the library's strict in-memory backend."""
+"""Protocol regression tests against the library's in-memory backend."""
 
 import asyncio
 from unittest.mock import patch

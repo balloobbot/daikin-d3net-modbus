@@ -1,5 +1,6 @@
 """Exercise real Home Assistant flows, entities and coordinator behavior."""
 
+from contextlib import asynccontextmanager
 from unittest.mock import patch
 
 import probatio
@@ -10,6 +11,7 @@ from homeassistant.const import CONF_DEVICE, STATE_UNAVAILABLE
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.selector import SerialPortSelector
 from homeassistant.loader import async_get_integration
@@ -20,7 +22,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.daikin_d3net.connection import connection_params, endpoint_id
 from custom_components.daikin_d3net.const import DOMAIN
 
-from .conftest import DATA, seed
+from .conftest import DATA, seed, seed_dta
 
 pytestmark = pytest.mark.usefixtures("enable_custom_integrations", "shared_unit")
 
@@ -87,6 +89,7 @@ async def test_first_read_failure_retries(hass, mock_entry, modbus_unit):
 
 
 SERIAL_DATA = {
+    "adapter_model": "EKMBDXB7V1",
     "transport": "serial",
     "device": "/dev/serial/by-id/usb-rs485",
     "baudrate": 9600,
@@ -408,3 +411,164 @@ async def test_serial_flow_supports_no_parity_one_stop_bit(hass):
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert connection_params(result["data"]).stopbits == 1
     assert connection_params(result["data"]).parity == "N"
+
+
+@pytest.mark.parametrize("transport", ["tcp", "serial"])
+@pytest.mark.parametrize("model", ["DTA116A51", "EKMBDXB7V1"])
+async def test_model_selection_and_entities(hass, modbus_unit, transport, model):
+    if model == "DTA116A51":
+        seed_dta(modbus_unit)
+    data = {**(DATA if transport == "tcp" else SERIAL_DATA), "adapter_model": model}
+    result = await start_connection_flow(hass, transport)
+    fields = probatio.to_field_list(
+        result["data_schema"], custom_serializer=cv.custom_serializer
+    )
+    board = next(field for field in fields if field["name"] == "adapter_model")
+    assert board["required"]
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], form_data(data)
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    entry = result["result"]
+    assert entry.data["adapter_model"] == model
+    registry = er.async_get(hass)
+    keys = {
+        entity.unique_id.rsplit(":", 1)[-1]
+        for entity in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+    assert {"climate", "error_code", "filter_sign", "malfunction", "warning"} <= keys
+    assert ("sensor_error" in keys) == (model == "DTA116A51")
+    for key in ("alarm", "error_subcode", "error_unit"):
+        assert (key in keys) == (model == "EKMBDXB7V1")
+    climate = hass.states.async_all("climate")[0]
+    assert ("auto" in climate.attributes["fan_modes"]) == (model == "EKMBDXB7V1")
+    assert {
+        device.model
+        for device in dr.async_entries_for_config_entry(
+            dr.async_get(hass), entry.entry_id
+        )
+    } == {model}
+
+
+@pytest.mark.parametrize("model", ["DTA116A51", "EKMBDXB7V1"])
+async def test_existing_entry_requires_explicit_model(
+    hass, modbus_unit, shared_unit, model
+):
+    data = {key: value for key, value in DATA.items() if key != "adapter_model"}
+    entry = MockConfigEntry(
+        domain=DOMAIN, title="Daikin", data=data, unique_id=endpoint_id(data)
+    )
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_ERROR
+    shared_unit.assert_not_called()
+    assert not modbus_unit.read_events
+    if model == "DTA116A51":
+        seed_dta(modbus_unit)
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "reconfigure", "entry_id": entry.entry_id}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"adapter_model": model}
+    )
+    await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data == {**data, "adapter_model": model}
+    assert entry.unique_id == endpoint_id(data)
+    assert entry.state is ConfigEntryState.LOADED
+
+
+async def test_reconfigure_board_preserves_climate_and_removes_unsupported_entities(
+    hass, mock_entry, modbus_unit
+):
+    seed(modbus_unit, (0, 63))
+    modbus_unit.input[1000] = [0xDD1F, 0x1020, 0x0A1E]
+    await setup_entry(hass, mock_entry)
+    registry = er.async_get(hass)
+    climate = next(
+        entity
+        for entity in er.async_entries_for_config_entry(registry, mock_entry.entry_id)
+        if entity.unique_id.endswith(":1-00:climate")
+    )
+    registry.async_update_entity(climate.entity_id, name="Bedroom")
+    for model, seeder in (("DTA116A51", seed_dta), ("EKMBDXB7V1", seed)):
+        seeder(modbus_unit)
+        if model == "DTA116A51":
+            modbus_unit.input[1000] = [0xDD1F, 0x1020, 0x0A1E]
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "reconfigure", "entry_id": mock_entry.entry_id}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"adapter_model": model}
+        )
+        await hass.async_block_till_done()
+        assert result["reason"] == "reconfigure_successful"
+        assert mock_entry.state is ConfigEntryState.LOADED
+        assert registry.async_get(climate.entity_id).name == "Bedroom"
+        entries = er.async_entries_for_config_entry(registry, mock_entry.entry_id)
+        assert all(":4-15:" not in entity.unique_id for entity in entries)
+        keys = {entity.unique_id.rsplit(":", 1)[-1] for entity in entries}
+        assert ("sensor_error" in keys) == (model == "DTA116A51")
+        assert ("alarm" in keys) == (model == "EKMBDXB7V1")
+        assert ("fan_speed" in keys) == (model == "EKMBDXB7V1")
+
+
+async def test_failed_reconfigure_keeps_existing_profile(hass, mock_entry, modbus_unit):
+    await setup_entry(hass, mock_entry)
+    modbus_unit.fail_requests(ModbusError("offline"))
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "reconfigure", "entry_id": mock_entry.entry_id}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"adapter_model": "DTA116A51"}
+    )
+    assert result["errors"] == {"base": "cannot_connect"}
+    assert mock_entry.data["adapter_model"] == "EKMBDXB7V1"
+
+
+async def test_dta_rejects_one_stop_bit_without_parity(hass, modbus_unit):
+    result = await start_connection_flow(hass, "serial")
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        form_data({**SERIAL_DATA, "adapter_model": "DTA116A51", "parity": "n1"}),
+    )
+    assert result["errors"] == {"parity": "invalid_parity"}
+    assert not modbus_unit.read_events
+
+
+@pytest.mark.parametrize("probe_fails", [False, True])
+async def test_serial_reconfigure_releases_old_settings_and_recovers(
+    hass, modbus_unit, probe_fails
+):
+    data = {**SERIAL_DATA, "parity": "n1"}
+    entry = MockConfigEntry(
+        domain=DOMAIN, title="Daikin", data=data, unique_id=endpoint_id(data)
+    )
+    await setup_entry(hass, entry)
+
+    @asynccontextmanager
+    async def temporary(hass, params, unit_id):
+        assert entry.state is ConfigEntryState.NOT_LOADED
+        assert params.parity == "N" and params.stopbits == 2
+        if probe_fails:
+            raise ModbusError("offline")
+        yield modbus_unit
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "reconfigure", "entry_id": entry.entry_id}
+    )
+    with patch(
+        "custom_components.daikin_d3net.config_flow.async_get_temporary_unit", temporary
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"adapter_model": "EKMBDXB7V1", "parity": "n"}
+        )
+        await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert entry.data["parity"] == ("n1" if probe_fails else "n")
+    if probe_fails:
+        assert result["errors"] == {"base": "cannot_connect"}
+    else:
+        assert result["reason"] == "reconfigure_successful"

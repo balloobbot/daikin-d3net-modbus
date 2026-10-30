@@ -1,6 +1,6 @@
 {
   "domain": "daikin_d3net",
-  "name": "Daikin DIII-Net (EKMBDXB7V1)",
+  "name": "Daikin DIII-Net",
   "codeowners": [
     "@balloobbot"
   ],
@@ -13,5 +13,5 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/balloobbot/daikin-d3net-modbus/issues",
   "requirements": [],
-  "version": "0.4.0"
+  "version": "0.5.0"
 }

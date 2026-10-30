@@ -15,6 +15,7 @@ NAMES = {
     "malfunction": "Malfunction",
     "warning": "Warning",
     "alarm": "Alarm",
+    "sensor_error": "Temperature sensor fault",
 }
 
 
@@ -23,7 +24,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(
         D3netBinarySensor(coordinator, unit, key)
         for unit in coordinator.gateway.units.values()
-        for key in NAMES
+        for key in unit.profile.binary_sensor_keys
     )
 
 
