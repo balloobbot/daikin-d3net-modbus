@@ -53,9 +53,9 @@
   "selector": {
     "parity": {
       "options": {
-        "E": "Even",
-        "O": "Odd",
-        "N": "None"
+        "e": "Even",
+        "o": "Odd",
+        "n": "None"
       }
     }
   }

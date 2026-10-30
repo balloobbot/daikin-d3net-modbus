@@ -90,7 +90,7 @@ SERIAL_DATA = {
     "transport": "serial",
     "device": "/dev/serial/by-id/usb-rs485",
     "baudrate": 9600,
-    "parity": "E",
+    "parity": "e",
     "unit_id": 1,
     "name": "Daikin",
 }
@@ -177,13 +177,13 @@ async def test_duplicate_endpoint(hass, data):
 @pytest.mark.parametrize(
     "device", ["/dev/serial/by-id/usb-rs485", "socket://gateway.local:6638"]
 )
-@pytest.mark.parametrize(("parity", "stopbits"), [("E", 1), ("O", 1), ("N", 2)])
+@pytest.mark.parametrize(("parity", "stopbits"), [("e", 1), ("o", 1), ("n", 2)])
 async def test_serial_setup_parameters(hass, shared_unit, device, parity, stopbits):
     data = {**SERIAL_DATA, "device": device, "baudrate": 19200, "parity": parity}
     entry = MockConfigEntry(domain=DOMAIN, data=data, unique_id=endpoint_id(data))
     await setup_entry(hass, entry)
     assert shared_unit.call_args.args[2] == ModbusSerialParams(
-        device=device, baudrate=19200, parity=parity, stopbits=stopbits
+        device=device, baudrate=19200, parity=parity.upper(), stopbits=stopbits
     )
 
 

@@ -55,8 +55,8 @@ SERIAL_SCHEMA = probatio.Schema(
             SelectSelector(SelectSelectorConfig(options=["9600", "19200"])),
             probatio.Coerce(int),
         ),
-        probatio.Required(CONF_PARITY, default="E"): SelectSelector(
-            SelectSelectorConfig(options=["E", "O", "N"], translation_key="parity")
+        probatio.Required(CONF_PARITY, default="e"): SelectSelector(
+            SelectSelectorConfig(options=["e", "o", "n"], translation_key="parity")
         ),
         **COMMON_FIELDS,
     }

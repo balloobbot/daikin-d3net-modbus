@@ -17,7 +17,7 @@ from .const import (
 
 def connection_params(data) -> ModbusTcpParams | ModbusSerialParams:
     if data[CONF_TRANSPORT] == TRANSPORT_SERIAL:
-        parity = data[CONF_PARITY]
+        parity = data[CONF_PARITY].upper()
         return ModbusSerialParams(
             device=data[CONF_DEVICE],
             baudrate=data[CONF_BAUDRATE],
