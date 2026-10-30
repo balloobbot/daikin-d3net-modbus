@@ -21,7 +21,11 @@ This implementation targets the DTA116A51 manual. It does not claim support for 
 
 Requires **Home Assistant 2026.10.4 or later**. Home Assistant's `modbus` integration provides the backend and its compatible library dependencies; no Modbus YAML configuration is needed.
 
-1. Add `https://github.com/balloobbot/daikin-d3net-modbus` as a custom **Integration** repository in HACS, then install it. Alternatively, copy `custom_components/daikin_d3net` into your Home Assistant `config/custom_components` directory.
+With HACS installed, use this button to open the repository in HACS:
+
+[![Open the repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=balloobbot&repository=daikin-d3net-modbus&category=integration)
+
+1. Open the repository using the button above, then download the integration in HACS. You can also add `https://github.com/balloobbot/daikin-d3net-modbus` manually as a custom **Integration** repository. Alternatively, copy `custom_components/daikin_d3net` into your Home Assistant `config/custom_components` directory.
 2. Restart Home Assistant.
 3. Add **Daikin DIII-Net (DTA116A51)** in Settings → Devices & services.
 4. Enter the gateway host/port, connection type, and the adapter's Modbus address (1–15).
