@@ -22,7 +22,19 @@ For indoor index `i` from 0 through 15, group address is `1-ii`. The library's c
 | Unit commands | 42001 + 3i | 2000 + 3i | 3 | 25–27 |
 | Adapter EEPROM settings | 40001 | 0, holding space | 1 | 24; not modified |
 
-Input and holding addresses refer to different tables. Status reads use FC04. The adapter lists only FC04, FC06 and FC16; there is no FC03 holding-register read. This implementation sends FC16 commands, including single-word commands. Each read is limited to 32 registers and each write is below the 30-register limit (pages 4–6). Adjacent documented fields are pooled; reserved gaps between adapter status words are not read.
+Input registers report unit state (FC04); holding registers store commands (FC03 reads, FC16 writes). The three holding words contain:
+
+| Offset | Contents |
+|---|---|
+| 0 | Power, fan-control selector, flap direction and fan speed |
+| 1 | Mode, filter-reset pulse and heating/cooling selector for Auto setpoints |
+| 2 | Temperature setpoint |
+
+These commands feed the climate entity and separate power, setpoint, mode, fan, direction and filter-reset entities. Their displayed values come from input status. Holding values can lag behind changes made at a wall controller.
+
+The DTA116A51 manual lists FC04, FC06 and FC16, but omits FC03. This implementation uses FC03 for command preparation, following the original integration. The newer [EKMBDXB design guide](https://www.daikin-ce.com/content/dam/document-library/Installer-reference-guide/ac/vrv/ekmbdxb/EKMBDXB_Design%20guide_4PEN642495-1A_English.pdf) documents FC03 and distinguishes stored commands from live status (§2). Support on a physical DTA116A51 remains unverified. A failed holding read aborts the command; there is no fallback.
+
+Each read is limited to 32 registers and each write stays below the 30-register limit (pages 4–6). Adjacent fields share a read; reserved gaps between adapter status words are skipped.
 
 ## Status and capabilities
 
@@ -38,8 +50,8 @@ The fourth status word contains error mapping value 1 at bits 0–3 and value 2 
 
 1. Read adapter communication status and the unit's six input status words.
 2. Validate capability support, temperatures and cool/heat role before any write.
-3. Derive baseline control words from input status using only documented command bits.
-4. Write the baseline for each affected register before writing a changed value. This handles changes made by a wall controller (pages 10 and 28–30).
+3. Skip unchanged commands. Otherwise, read all three holding registers and derive baseline control words from input status. Preserve holding bits outside the control masks `0x77F1`, `0x0FFF` and `0xFFFF`.
+4. Write each affected baseline word only when its holding value differs, then write the requested changes. This ensures commands still trigger after wall-controller changes (pages 10 and 28–30).
 5. Wait more than 0.5 seconds before writing the same register again (page 28). The implementation uses 0.51 seconds after completion of the preceding attempt, including failed attempts.
 6. For a temperature command, synchronize the mode/operation register before changing the temperature register (page 27).
 7. For filter reset, write reset nibble `15`, then clear it to `0`. If clearing fails or a request is cancelled, retain a pending clear and retry during a later poll or command (page 26).
@@ -48,12 +60,12 @@ The device requests 25 ms of message spacing from `ModbusUnit`, covering the 960
 
 The fan-control nibble must equal `6`. Fan speed is zero when the unit has no fan-speed capability. Fixed, two-step and three-step speeds are handled as specified; Auto fan speed and four/five-step fan speeds are not advertised by this manual (pages 18, 20 and 25).
 
-For an Auto-mode temperature change, bits 8–11 of the command mode word select heating (`1`) or cooling (`2`). If current operation cannot select either, the command fails with a useful error. Cool/heat slaves use command mode `6` for setpoint control and cannot request a different heating/cooling system mode (page 26).
+For an Auto-mode temperature change, bits 8–11 of the command mode word select heating (`1`) or cooling (`2`). If current operation cannot select either, the command fails. Cool/heat slaves use command mode `6` for setpoint control and cannot request a different heating/cooling system mode (page 26).
 
 ## Implementation choices
 
-Synchronization happens before user commands. Routine polls do not write control registers. No-op commands are skipped. These choices reduce unnecessary commands while retaining the synchronization-before-change sequence.
+Routine polls read input status. Holding reads and synchronization writes happen during command preparation; a pending filter-reset clear is also retried during polls.
 
-Polling does not suppress live measurements after writes or invent optimistic state. Physical propagation delay remains visible until the adapter reports the new value. Unconfirmed commands are not automatically retried; a lost reply cannot prove whether a command reached the indoor unit.
+Entities display input status, including while a command propagates through DIII-Net. Failed commands are not automatically retried because the device may have accepted a write whose reply was lost.
 
-The device code is bundled in the custom integration, as allowed by the [modbus-connection integration guide](https://home-assistant-libs.github.io/modbus-connection/home-assistant/integration/). Home Assistant owns connections through `async_get_unit` and `async_get_temporary_unit`. Packed-field write helpers are deliberately unused because their read-modify-write operation requires FC03.
+The device code follows the [modbus-connection integration guide](https://home-assistant-libs.github.io/modbus-connection/home-assistant/integration/). Home Assistant owns shared connections through `async_get_unit` and `async_get_temporary_unit`. Typed `Component` classes read the registers. Commands use a custom write sequence to synchronize with input status and enforce per-register delays.

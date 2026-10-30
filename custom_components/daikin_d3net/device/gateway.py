@@ -7,7 +7,10 @@ import time
 from modbus_connection import ModbusConnectionError, ModbusError, ModbusUnit
 from modbus_connection.model import UpdateReport
 
-from .models import AdapterStatus, Capabilities, IndoorStatus, Mode
+from .models import AdapterStatus, Capabilities, HoldingSettings, IndoorStatus, Mode
+
+# Fields changed by commands; preserve the other holding-register bits.
+CONTROL_MASKS = (0x77F1, 0x0FFF, 0xFFFF)
 
 # §2-2-7: at least 5 ms silence + 20 ms at 9600 baud.
 MESSAGE_SPACING = 0.025
@@ -16,7 +19,7 @@ WRITE_INTERVAL = 0.51
 
 
 class D3netGateway:
-    """An adapter on a caller-owned, backend-neutral Modbus unit."""
+    """A DIII-Net adapter using a shared Modbus connection."""
 
     def __init__(self, unit: ModbusUnit) -> None:
         self.modbus_unit = unit
@@ -27,7 +30,7 @@ class D3netGateway:
         self._setup_done = False
 
     async def async_setup(self) -> None:
-        """Discover the documented addresses 1-00 through 1-15 without writes."""
+        """Discover connected groups 1-00 through 1-15."""
         if self._setup_done:
             return
         await self.adapter.async_update()
@@ -45,7 +48,7 @@ class D3netGateway:
         self._setup_done = True
 
     async def async_update(self) -> UpdateReport:
-        """Keep a failed indoor unit separate from the rest of the system."""
+        """Poll connected units and collect per-unit failures."""
         await self.async_setup()
         await self.adapter.async_update()
         if not self.adapter.ready:
@@ -74,7 +77,7 @@ class D3netGateway:
 
 
 class IndoorUnit:
-    """One indoor unit with serialized synchronization and control writes."""
+    """An indoor unit and its command lock."""
 
     def __init__(self, gateway: D3netGateway, index: int) -> None:
         self.gateway = gateway
@@ -82,6 +85,7 @@ class IndoorUnit:
         self.name = f"1-{index:02d}"
         self.capabilities = Capabilities(gateway.modbus_unit, index=index + 1)
         self.status = IndoorStatus(gateway.modbus_unit, index=index + 1)
+        self.settings = HoldingSettings(gateway.modbus_unit, index=index + 1)
         self._lock = asyncio.Lock()
         self._last_write: dict[int, float] = {}
         self._reset_pending: int | None = None
@@ -148,13 +152,7 @@ class IndoorUnit:
         direction: int | None = None,
         reset_filter: bool = False,
     ) -> None:
-        """Synchronize each affected word from input status, then change it.
-
-        §5 requires synchronization before control after remote-panel changes.
-        FC03 and packed-field writes are intentionally avoided: packed-field
-        write helpers read holding registers, which this adapter cannot do.
-        Only accepted Modbus writes count as success; status is never fabricated.
-        """
+        """Sync affected holding registers with live status, then write the command."""
         async with self._lock:
             await self.gateway.adapter.async_update()
             self.gateway.check_connected(self.index)
@@ -205,10 +203,16 @@ class IndoorUnit:
             }
             if not changed:
                 return
+            settings = await self.settings.async_read()
+            for offset in baseline:
+                retained = settings[offset] & ~CONTROL_MASKS[offset]
+                baseline[offset] |= retained
+                target[offset] |= retained
             # A setpoint write must be preceded by the correct mode/operation (§4-2-2).
             sync_offsets = changed | ({1} if 2 in changed else set())
             for offset in sorted(sync_offsets):
-                await self._write(offset, [baseline[offset]])
+                if settings[offset] != baseline[offset]:
+                    await self._write(offset, [baseline[offset]])
             for offset in sorted(changed):
                 if reset_filter and offset == 1:
                     self._reset_pending = target[offset] & ~0xF0

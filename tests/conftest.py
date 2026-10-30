@@ -1,4 +1,4 @@
-"""Fixtures with only the registers documented in EDMT721419."""
+"""Input status and holding-register fixtures."""
 
 from contextlib import asynccontextmanager
 from unittest.mock import patch
@@ -26,6 +26,7 @@ def seed(unit, indexes=(0,)):
         unit.input[1000 + 3 * index] = [0xBD1F, 0x1020, 0x0A1E]
         # On, P2, high fan; cooling master; 22.5 °C; U4 malfunction; 23.4 °C, valid.
         unit.input[2000 + 6 * index] = [0x5201, 0x8202, 225, 0x294, 234, 0x8000]
+        unit.holding[2000 + 3 * index] = [0, 0, 0]
     return unit
 
 

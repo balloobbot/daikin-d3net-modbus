@@ -1,7 +1,7 @@
 """DTA116A51 registers from EDMT721419, functional specification §§3–4.
 
-Addresses here are zero-based wire addresses, not 3xxxx/4xxxx references.
-Only documented input registers are read. The adapter does not support FC03.
+Addresses are zero-based. Input registers report state; holding registers
+store commands. See docs/protocol.md for the FC03 compatibility note.
 """
 
 from enum import IntEnum
@@ -34,6 +34,19 @@ class AdapterStatus(InputComponent):
     ready = bit(0, 0)
     connected = raw_register(1)
     communication_errors = raw_register(5)
+
+
+class HoldingSettings(Component):
+    """Power/fan, mode/reset and setpoint command registers."""
+
+    power_fan = raw_register(2000, stride=3)
+    mode = raw_register(2001, stride=3)
+    setpoint = raw_register(2002, stride=3)
+
+    async def async_read(self) -> tuple[int, int, int]:
+        """Read the unit's three holding registers."""
+        await self.async_update()
+        return self.power_fan, self.mode, self.setpoint
 
 
 class Capabilities(InputComponent):
@@ -112,7 +125,7 @@ class IndoorStatus(InputComponent):
 
     @property
     def room_temperature(self) -> float | None:
-        """Do not publish missing or faulty sensor readings as temperatures."""
+        """Return room temperature when the sensor data is valid."""
         if not self.sensor_received or self.sensor_error:
             return None
         return self.temperature

@@ -207,3 +207,107 @@ async def test_commands_are_serialized(modbus_unit):
             indoor.async_control(power=False), indoor.async_control(temperature=23)
         )
     assert [event.address for event in writes] == [2000, 2000, 2001, 2002, 2002]
+
+
+@pytest.mark.parametrize("index", [0, 15])
+async def test_holding_reads_preserve_bits_and_skip_matching_sync(modbus_unit, index):
+    seed(modbus_unit, (index,))
+    # Bits 15, 11 and 1–3 are outside the power/fan fields we own.
+    preserved = 0x880E
+    modbus_unit.holding[2000 + 3 * index] = [0x5261 | preserved, 0x202, 225]
+    gateway = await gateway_for(modbus_unit)
+    writes = []
+    modbus_unit.on_write(writes.append)
+    await gateway.units[index].async_control(power=False)
+    assert [
+        (event.address, event.count)
+        for event in modbus_unit.read_events
+        if event.register_type == "holding"
+    ] == [(2000 + 3 * index, 3)]
+    assert [(event.address, event.values) for event in writes] == [
+        (2000 + 3 * index, [0x5260 | preserved])
+    ]
+    assert gateway.units[index].status.power  # Holding values are not live state.
+
+
+async def test_holding_target_still_requires_sync_after_wall_change(modbus_unit):
+    # The wall controller turned the unit off, but the holding word is still ON.
+    modbus_unit.input[2000] = [0x5200, 0x8202, 225, 0, 234, 0x8000]
+    modbus_unit.holding[2000] = [0x5261 | 0x880E, 0x202, 225]
+    indoor = (await gateway_for(modbus_unit)).units[0]
+    writes = []
+    modbus_unit.on_write(writes.append)
+    with patch("custom_components.daikin_d3net.device.gateway.asyncio.sleep") as sleep:
+        await indoor.async_control(power=True)
+    assert [event.values for event in writes] == [[0x5260 | 0x880E], [0x5261 | 0x880E]]
+    sleep.assert_awaited_once()
+    assert 0.50 < sleep.call_args.args[0] <= 0.51
+
+
+async def test_each_command_reads_fresh_holding_values(modbus_unit):
+    indoor = (await gateway_for(modbus_unit)).units[0]
+    writes = []
+    modbus_unit.on_write(writes.append)
+    with patch("custom_components.daikin_d3net.device.gateway.asyncio.sleep"):
+        await indoor.async_control(power=False)
+        # Another controller changes bits outside the fields this integration owns.
+        modbus_unit.holding[2000] = [0x5261 | 0x880E, 0x202, 225]
+        writes.clear()
+        await indoor.async_control(power=False)
+    assert [event.values for event in writes] == [[0x5260 | 0x880E]]
+    assert (
+        sum(event.register_type == "holding" for event in modbus_unit.read_events) == 2
+    )
+
+
+@pytest.mark.parametrize(
+    "error_name",
+    [
+        "ModbusTimeoutError",
+        "ModbusConnectionError",
+        "ModbusProtocolError",
+        "IllegalDataAddressError",
+        "IllegalDataValueError",
+        "IllegalFunctionError",
+    ],
+)
+async def test_holding_read_failures_abort_command(modbus_unit, error_name):
+    import modbus_connection
+
+    error_type = getattr(modbus_connection, error_name)
+    error = error_type()
+    gateway = await gateway_for(modbus_unit)
+    modbus_unit.fail_read(2000, error)
+    writes = []
+    modbus_unit.on_write(writes.append)
+    with pytest.raises(error_type):
+        await gateway.units[0].async_control(power=False)
+    assert not writes
+    modbus_unit.fail_read(2000, None)
+    with patch("custom_components.daikin_d3net.device.gateway.asyncio.sleep"):
+        await gateway.units[0].async_control(power=False)
+    assert writes
+
+
+async def test_auto_setpoint_preserves_holding_bits_and_selector(modbus_unit):
+    modbus_unit.input[2000] = [0x5201, 0x8203, 225, 0, 234, 0x8000]
+    # Holding still targets heating; input status now reports Auto cooling.
+    modbus_unit.holding[2000] = [0x5261, 0xA103, 225]
+    indoor = (await gateway_for(modbus_unit)).units[0]
+    writes = []
+    modbus_unit.on_write(writes.append)
+    await indoor.async_control(temperature=23)
+    assert [(event.address, event.values) for event in writes] == [
+        (2001, [0xA203]),
+        (2002, [230]),
+    ]
+
+
+async def test_filter_reset_preserves_other_holding_bits(modbus_unit):
+    modbus_unit.holding[2000] = [0x5261, 0xA202, 225]
+    indoor = (await gateway_for(modbus_unit)).units[0]
+    writes = []
+    modbus_unit.on_write(writes.append)
+    with patch("custom_components.daikin_d3net.device.gateway.asyncio.sleep"):
+        await indoor.async_control(reset_filter=True)
+    assert [event.values for event in writes] == [[0xA2F2], [0xA202]]
