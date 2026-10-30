@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect a Daikin DTA116A51",
+        "data": {
+          "host": "Gateway host",
+          "port": "Gateway port",
+          "unit_id": "Modbus address (1–15)",
+          "transport": "Connection type",
+          "name": "Name"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not read a ready adapter and at least one communicating indoor unit. Check the gateway, Modbus address and DIII-Net connection.",
+      "connection_conflict": "This gateway is already in use with different connection settings."
+    },
+    "abort": {"already_configured": "This adapter is already configured."}
+  }
+}
